@@ -201,10 +201,7 @@
     luF = it.f;
     const f = FILMS[it.f];
     $('#luNo').textContent = `${pad(it.n + 1)} — ${pad(visibles.length)}`;
-    $('#luMeta').textContent = etiquette(f);
-    lu.classList.remove('change');
-    void lu.offsetWidth;
-    lu.classList.add('change');
+    $('#luMeta').textContent = etiquette(f) || 'Film';
     // on a phone there is no hover: the film on the line starts playing by itself
     if (vertical) {
       for (const autre of items) autre.el.classList.toggle('actif', autre === it);
