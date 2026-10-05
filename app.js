@@ -240,6 +240,38 @@
   const fim = fenetre.appendChild(new Image());
   fim.alt = '';
   fim.decoding = 'async';
+  // Sound on the main page, off until asked for. The previews are silent files, so the sound is the edit's own:
+  // a small tick each time the playhead crosses a cut, a lower one when a film opens.
+  let ac = null, sonOn = false, dernierTic = 0;
+  function tic(freq, vol, duree) {
+    if (!sonOn) return;
+    const now = performance.now();
+    if (now - dernierTic < 45) return;
+    dernierTic = now;
+    try {
+      ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+      if (ac.state === 'suspended') ac.resume();
+      const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain();
+      o.type = 'triangle';
+      o.frequency.setValueAtTime(freq, t);
+      o.frequency.exponentialRampToValueAtTime(freq * .5, t + duree);
+      g.gain.setValueAtTime(vol, t);
+      g.gain.exponentialRampToValueAtTime(.0001, t + duree);
+      o.connect(g).connect(ac.destination);
+      o.start(t);
+      o.stop(t + duree + .01);
+    } catch (e) {}
+  }
+  const sonB = $('#sonAccueil');
+  function reglerSon(on) {
+    sonOn = on;
+    sonB.classList.toggle('actif', on);
+    $('.mono', sonB).textContent = on ? T('Son', 'Sound') : T('Son coupé', 'Sound off');
+    try { localStorage.setItem('son', on ? '1' : '0'); } catch (e) {}
+  }
+  try { reglerSon(localStorage.getItem('son') === '1'); } catch (e) { reglerSon(false); }
+  sonB.addEventListener('click', function () { reglerSon(!sonOn); tic(900, .05, .09); });
+
   // the reminder under the sliders names the keys of this machine, or the gestures of a touch screen
   const MAC = /Mac|iPhone|iPad|iPod/i.test(navigator.platform || navigator.userAgent);
   $('#aide').textContent = tactile
@@ -376,11 +408,12 @@
   fenetre.addEventListener('click', function () {
     if (sous && glisse.bouge <= 6) ouvrir(sous.f, fenetre.getBoundingClientRect(), fenetre);
   });
-  // the window takes the shape of the film it shows
+  // the window shows the preview of the film whole. Every preview is a 16:9 file, whatever the shape of the
+  // film, so the window is 16:9: any other shape would cut into the picture.
   function cadrer(f) {
     const d = FILMS[f];
-    fenetre.style.setProperty('--ratio', clamp(d.l / d.h || 1.78, .8, 2.39).toFixed(3));
     fenetre.classList.toggle('nb', !!d.nb);
+    tic(1500, .035, .045);
     fim.src = affiche(f);
     vif.classList.remove('vivant');
     vif.src = boucle(f);
@@ -769,8 +802,13 @@
 
     // the real pictures are replaced by the travelling ones for the whole passage
     for (const it of items) if (!it.loin) anime(it.el, [{ opacity: 0 }, { opacity: 0 }], { duration: DUREE_P });
-    const noms = $$('.nompiste', piste), meubles = [$('.axe'), lu, regle, $('#outils'), $('#poignee')];
+    const noms = $$('.nompiste', piste), meubles = [$('.axe'), lu, regle, $('#outils'), $('#poignee'), sonB];
     const FERME = 'translateX(-50%) scaleY(0)', OUVERT = 'translateX(-50%) scaleY(1)';
+    // on a wide screen the filters belong to the list only: they come and go with it, inside the passage
+    if (!vertical) {
+      anime($('.filtres'), versListe ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 1 }, { opacity: 0 }],
+        versListe ? { duration: 420, delay: DUREE_P - 520 } : { duration: 180 });
+    }
     if (versListe) {
       anime(liste, [{ opacity: 1 }, { opacity: 1 }], { duration: DUREE_P });
       for (const e of [...noms, ...meubles]) anime(e, [{ opacity: 1 }, { opacity: 0 }], { duration: 260 });
@@ -927,6 +965,20 @@
     if (qualites.length) regler(qualites[(qualites.indexOf(qualite) + 1) % qualites.length]);
   }
   // the full-HD still of the film: shown sharp while the film itself gets ready
+  // How a film sits on the screen. It is shown whole, with one exception: when the screen is only a little wider
+  // than the film, the thin black bands left and right read as a mistake, so the film is enlarged to the full
+  // width and loses a sliver at the top and the foot (never more than REMPLIR of its height). The sides of a
+  // film are never cut, and a film much narrower than the screen (square, vertical) keeps its bands.
+  const REMPLIR = .12;
+  function echelle(f) {
+    const d = FILMS[f], k = (innerWidth / innerHeight) / (d.l / d.h || 16 / 9);
+    return k > 1 && 1 - 1 / k <= REMPLIR ? k : 1;
+  }
+  const ajuster = (image, f) => { image.style.objectFit = echelle(f) > 1 ? 'cover' : 'contain'; };
+  function recadrer() {
+    film.style.setProperty('--ky', echelle(courant).toFixed(4));
+    ajuster(fa, courant);
+  }
   function nettete(f) {
     fa.classList.remove('on');
     const im = new Image();
@@ -950,6 +1002,7 @@
 
   function charger(f, attendre) {
     courant = f;
+    recadrer();
     const d = FILMS[f], n = visibles.indexOf(f);
     fv.src = boucle(f);
     fv.loop = true;
@@ -1029,6 +1082,7 @@
   function ouvrir(f, rect, depuis) {
     if (ouvert) return;
     ouvert = true;
+    tic(240, .06, .16);
     origine = rect;
     clearTimeout(reveil);
     quitter(survol);
@@ -1104,6 +1158,7 @@
     if (leger) return charger(suivant);
     enVol = true;
     dessous.src = nette(courant);
+    ajuster(dessous, courant);
     dessous.classList.add('on');
     fa.style.transition = 'none';
     fa.classList.remove('on');
@@ -1113,6 +1168,7 @@
     const partir = function () {
       if (!enVol || courant !== suivant) return;
       arrive.src = im.src;
+      ajuster(arrive, suivant);
       arrive.classList.add('on');
       const o = { duration: 950, easing: COURBE, fill: 'both' };
       vol = [
@@ -1369,7 +1425,7 @@
       if (vertical) L = bandeEl.clientHeight;
       ajusterTitres();
     }
-    if (ouvert) construireTuiles();
+    if (ouvert) { construireTuiles(); recadrer(); }
   }
   document.addEventListener('visibilitychange', function () { if (document.hidden) vif.pause(); });
   let avant = 0;
