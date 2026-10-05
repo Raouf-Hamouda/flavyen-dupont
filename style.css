@@ -1516,9 +1516,16 @@ body.leger .pose {
 #tTemps .tu.hov::after {
   content: "";
   position: absolute;
-  inset: 3px;
+  inset: 0;
   border: 1px solid #d6301d;
 }
+/* with a mouse, the cursor itself sticks to the tile and takes its size */
+@media (hover: hover) {
+  #tTemps .tu.hov::after {
+    display: none;
+  }
+}
+
 .tcmd {
   display: flex;
   gap: 22px;
@@ -1824,17 +1831,19 @@ body.net .rang {
   border-color: transparent !important;
 }
 
-/* ---------- between two films: the tiles the outgoing picture breaks into */
-#eclats {
+/* ---------- between two films: a swipe between the two sharp stills */
+.glisse {
   position: absolute;
   inset: 0;
-  z-index: 2;
-  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+  opacity: 0;
   pointer-events: none;
+  will-change: transform;
 }
-#eclats i {
-  position: absolute;
-  background-color: #000;
-  background-repeat: no-repeat;
-  will-change: transform, opacity;
+.glisse.on {
+  opacity: 1;
 }
+

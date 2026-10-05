@@ -718,6 +718,7 @@
   function fermer() {
     if (!ouvert) return;
     info(false);
+    atterrir();
     fa.classList.remove('on');
     film.classList.remove('pret', 'repos', 'sombre');
     clearTimeout(repos);
@@ -745,45 +746,51 @@
       luF = -1;
     };
   }
-  function voisin(sens) {
-    const n = Math.max(0, visibles.indexOf(courant));
-    eclater(courant, sens);
-    charger(visibles[(n + sens + visibles.length) % visibles.length]);
+  // Between two films, a swipe: the film you were watching slides out to one side as the next one slides in from
+  // the other (from the right for the next film, from the left for the previous one), both as their sharp stills.
+  const dessous = film.insertBefore(el('img'), cadreV), arrive = film.insertBefore(el('img'), cadreV);
+  dessous.className = arrive.className = 'glisse';
+  dessous.alt = arrive.alt = '';
+  let enVol = false, vol = [];
+  function atterrir() {
+    vol.forEach(a => a.cancel());
+    vol = [];
+    dessous.classList.remove('on');
+    arrive.classList.remove('on');
+    enVol = false;
   }
-  // Between two films: the picture on screen breaks into manuscript tiles, and a wave blows them off the screen
-  // in the direction of travel (left for the next film, right for the previous one). The new film is already
-  // underneath, settling into place as the tiles clear.
-  const eclats = film.insertBefore(el('div'), $('.ui', film));
-  eclats.id = 'eclats';
-  function eclater(f, sens) {
-    if (leger) return;
-    const vw = innerWidth, vh = innerHeight, cols = vw < 700 ? 6 : 12, rows = Math.max(4, Math.round(vh / (vw / cols)));
-    const cw = vw / cols, ch = vh / rows, src = nette(f), im = new Image();
-    im.src = src;
-    // each tile carries its own piece of the outgoing picture, framed the way the film was framed
-    let fond = '', ox = 0, oy = 0;
-    if (im.complete && im.naturalWidth) {
-      const k = Math.min(vw / im.naturalWidth, vh / im.naturalHeight), w = im.naturalWidth * k, h = im.naturalHeight * k;
-      fond = `background-image:url("${src}");background-size:${w}px ${h}px;`;
-      ox = (vw - w) / 2; oy = (vh - h) / 2;
-    }
-    eclats.innerHTML = '';
-    let fin = 0;
-    for (let j = 0; j < rows; j++) {
-      for (let i = 0; i < cols; i++) {
-        const t = eclats.appendChild(el('i'));
-        t.style.cssText = `left:${i * cw}px;top:${j * ch}px;width:${cw + 1}px;height:${ch + 1}px;${fond}background-position:${ox - i * cw}px ${oy - j * ch}px;`;
-        // the wave runs across the screen from the side the tiles fly toward
-        const d = (sens > 0 ? i : cols - 1 - i) * 34 + j * 14 + Math.random() * 70;
-        const dx = -sens * (160 + Math.random() * 300), dy = (Math.random() - .5) * 220, r = (Math.random() - .5) * 60;
-        t.animate([{ transform: 'none', opacity: 1 }, { transform: `translate(${dx}px,${dy}px) rotate(${r}deg) scale(.45)`, opacity: 0 }],
-          { duration: 680, delay: d, easing: 'cubic-bezier(.6,0,.3,1)', fill: 'both' });
-        fin = Math.max(fin, d + 680);
-      }
-    }
-    // underneath, the new picture eases back from slightly too close
-    for (const e of [fv, fa]) e.animate([{ transform: 'scale(1.14)' }, { transform: 'none' }], { duration: fin, easing: 'cubic-bezier(.2,.7,.2,1)' });
-    setTimeout(function () { eclats.innerHTML = ''; }, fin + 60);
+  function voisin(sens) {
+    if (enVol) return;
+    const n = Math.max(0, visibles.indexOf(courant)), suivant = visibles[(n + sens + visibles.length) % visibles.length];
+    if (leger) return charger(suivant);
+    enVol = true;
+    dessous.src = nette(courant);
+    dessous.classList.add('on');
+    fa.style.transition = 'none';
+    fa.classList.remove('on');
+    charger(suivant, true);
+    const im = new Image();
+    im.src = nette(suivant);
+    const partir = function () {
+      if (!enVol || courant !== suivant) return;
+      arrive.src = im.src;
+      arrive.classList.add('on');
+      const o = { duration: 950, easing: COURBE, fill: 'both' };
+      vol = [
+        dessous.animate([{ transform: 'none' }, { transform: `translateX(${-sens * 100}%)` }], o),
+        arrive.animate([{ transform: `translateX(${sens * 100}%)` }, { transform: 'none' }], o),
+      ];
+      vol[1].onfinish = function () {
+        // the sharp still stays in place under the film, which fades in over it once it plays
+        fa.src = im.src;
+        fa.classList.add('on');
+        void fa.offsetWidth;
+        fa.style.transition = '';
+        atterrir();
+        if (ouvert) monter(FILMS[suivant].vimeo);
+      };
+    };
+    im.decode ? im.decode().then(partir, partir) : (im.onload = im.onerror = partir);
   }
   function basculer() {
     if (joueur) vpause ? joueur.play().catch(function () {}) : joueur.pause().catch(function () {});
@@ -968,7 +975,12 @@
   const cz = { x: 0, y: 0, w: 26, h: 26, tx: 0, ty: 0, tw: 26, th: 26, vu: false };
   if (!tactile) addEventListener('pointermove', function (e) {
     const b = e.target.closest ? e.target.closest('.btn') : null;
-    if (b) {
+    const tu = e.target.closest ? e.target.closest('#tTemps .tu') : null;
+    if (tu) {
+      // over the time bar it sticks to the tile under it and takes its size
+      const r = tu.getBoundingClientRect();
+      cz.tx = r.left; cz.ty = r.top; cz.tw = r.width; cz.th = r.height;
+    } else if (b) {
       const r = $('.k', b).getBoundingClientRect();
       cz.tx = r.left - 4; cz.ty = r.top - 4; cz.tw = r.width + 8; cz.th = r.height + 8;
     } else {
