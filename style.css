@@ -2250,3 +2250,9 @@ body.net #poignee {
 .trait-v.photo b {
   background: center / cover no-repeat;
 }
+
+/* the hover picture of the list never lingers over a passage between the two views */
+body.net #flottant {
+  opacity: 0 !important;
+  transition: none !important;
+}

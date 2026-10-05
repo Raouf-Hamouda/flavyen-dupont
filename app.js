@@ -643,7 +643,7 @@
     const versListe = vers === 'liste';
     const DOUX = 'cubic-bezier(.65,0,.35,1)', SORTIE = 'cubic-bezier(.22,1,.36,1)';
     const ENCRE = 'rgb(12,12,12)', GRIS = 'rgb(155,155,155)';
-    const FOND = vertical ? 'rgb(236,236,236)' : 'rgba(12,12,12,0)', FORT = 'rgba(12,12,12,.6)', FIN = 'rgba(12,12,12,.16)';
+    const FOND = vertical ? 'rgb(236,236,236)' : 'rgba(12,12,12,0)', FORT = 'rgba(12,12,12,.4)', FIN = 'rgba(12,12,12,.16)';
     const anims = [];
     const anime = function (e, images, options) {
       const a = e.animate(images, Object.assign({ fill: 'both' }, options));
@@ -685,13 +685,18 @@
       if (!it) return null;
       const d = FILMS[f], actif = f === filmCourant;
       if (vertical) {
-        const y = clamp(hautB + p, -S - 60, innerHeight + 60);
-        return { actif, h: S, o0: actif ? 1 : .35, gris: !!d.nb, photo: true, image: affiche(f),
-          S: { x: 16, y, w: W, h: S }, F: { x: 16, y: y + S - 1, w: W, h: 1 },
-          petit: { transform: `translate(16px,${(y + S - 34).toFixed(1)}px) scale(.8)`, color: ENCRE, opacity: 0 } };
+        // the travelling picture is cut by the edges of the strip exactly as the real one is; a picture that is
+        // outside the strip is a line that comes from beyond the screen
+        const y0 = hautB + p, y1 = y0 + S, a = clamp(y0, hautB, hautB + L), b = clamp(y1, hautB, hautB + L);
+        if (b - a < 1) {
+          const y = y1 <= hautB + 1 ? -30 : innerHeight + 30, ligne = { x: 16, y, w: W, h: 1 };
+          return { actif, h: S, coupe: 0, o0: 0, gris: false, photo: true, image: affiche(f), S: ligne, F: ligne };
+        }
+        return { actif, h: S, coupe: y1 - b, o0: actif ? 1 : .35, gris: !!d.nb, photo: true, image: affiche(f),
+          S: { x: 16, y: a, w: W, h: b - a }, F: { x: 16, y: b - 1, w: W, h: 1 } };
       }
       const x = clamp(p, -it.w - 80, innerWidth + 80), y = hautB + it.el.offsetTop, h = hp - 30;
-      return { actif, h, o0: actif ? 1 : .38, gris: !actif || !!d.nb, photo: false, image: `affiches/${d.slug}-pellicule.jpg`,
+      return { actif, h, coupe: 0, ecran: p + it.w > 40 && p < innerWidth - 40, o0: actif ? 1 : .38, gris: !actif || !!d.nb, photo: false, image: `affiches/${d.slug}-pellicule.jpg`,
         S: { x, y: y + 22, w: it.w - 3, h }, F: { x, y: y + 22 + h - 1, w: it.w - 3, h: 1 },
         petit: { transform: `translate(${x.toFixed(1)}px,${y}px) scale(.56)`, color: actif ? ENCRE : GRIS, opacity: 1 } };
     };
@@ -713,38 +718,45 @@
       if (!c) continue;
       const rang = Math.abs(o.n - centre), titre = $('.titre', o.r);
       const R = { x: gauche, y: o.y, w: large, h: 1 };
-      // the name of the film <-> the title of the row
-      const nom = passage.appendChild(el('div', 'rang vol'));
-      const copieT = nom.appendChild(titre.cloneNode(true));
-      copieT.style.width = titre.offsetWidth + 'px';
-      const grand = { transform: `translate(${gauche + titre.offsetLeft}px,${haut + titre.offsetTop}px) scale(1)`, color: ENCRE, opacity: 1 };
+      // the name of the film <-> the title of the row, for the clips that are on screen. A film whose clip is
+      // out of sight (and, on a phone, every film: the pictures carry no name) keeps its title in its row, where
+      // it only rises or leaves: titles flying in from beyond the screen pile up on the way.
+      let nom = null, grand = null;
+      if (c.ecran) {
+        nom = passage.appendChild(el('div', 'rang vol'));
+        nom.appendChild(titre.cloneNode(true)).style.width = titre.offsetWidth + 'px';
+        grand = { transform: `translate(${gauche + titre.offsetLeft}px,${haut + titre.offsetTop}px) scale(1)`, color: ENCRE, opacity: 1 };
+        anime(titre, [{ opacity: 0 }, { opacity: 0 }], { duration: DUREE_P });
+      }
       // the picture of the film <-> the rule of the row
       const trait = passage.appendChild(el('i', 'trait-v' + (c.gris ? ' gris' : '') + (c.photo ? ' photo' : '')));
       const im = trait.appendChild(el('b'));
       im.style.backgroundImage = `url("${c.image}")`;
       im.style.height = c.h + 'px';
-      const autres = [...o.r.children].filter(e => e !== titre);
-      anime(titre, [{ opacity: 0 }, { opacity: 0 }], { duration: DUREE_P });
+      im.style.bottom = -c.coupe + 'px';
+      const autres = [...o.r.children].filter(e => e !== titre || !nom);
       if (versListe) {
         const t0 = 140 + rang * PAS_T;
-        anime(nom, vertical ? [c.petit, { opacity: 0, offset: .4 }, grand] : [c.petit, grand], { duration: VOL, delay: t0, easing: DOUX });
+        if (nom) anime(nom, [c.petit, grand], { duration: VOL, delay: t0, easing: DOUX });
+        // the picture closes into its foot line, still showing its image until it is nearly shut
         anime(trait, [
           Object.assign(boiteP(c.S), { backgroundColor: FOND, easing: DOUX }),
           Object.assign(boiteP(c.F), { backgroundColor: FORT, offset: .36, easing: DOUX }),
           Object.assign(boiteP(R), { backgroundColor: FIN }),
         ], { duration: VOL + 60, delay: t0 - 140 });
-        anime(im, [{ opacity: c.o0 }, { opacity: 0, offset: .36 }, { opacity: 0 }], { duration: VOL + 60, delay: t0 - 140 });
+        anime(im, [{ opacity: c.o0 }, { opacity: c.o0, offset: .24 }, { opacity: 0, offset: .36 }, { opacity: 0 }], { duration: VOL + 60, delay: t0 - 140 });
         for (const e of autres) anime(e, [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 520, delay: t0 + VOL - 420, easing: SORTIE });
       } else {
         const t0 = rang * PAS_T;
-        anime(nom, vertical ? [grand, { opacity: 0, offset: .5 }, c.petit] : [grand, c.petit], { duration: VOL, delay: t0, easing: DOUX });
+        if (nom) anime(nom, [grand, c.petit], { duration: VOL, delay: t0, easing: DOUX });
+        // ... and opens from it with its image there from the first moment
         anime(trait, [
           Object.assign(boiteP(R), { backgroundColor: FIN, easing: DOUX }),
           Object.assign(boiteP(c.F), { backgroundColor: FORT, offset: .64, easing: SORTIE }),
           Object.assign(boiteP(c.S), { backgroundColor: FOND }),
         ], { duration: VOL + 60, delay: t0 });
-        anime(im, [{ opacity: 0 }, { opacity: 0, offset: .64 }, { opacity: c.o0 }], { duration: VOL + 60, delay: t0 });
-        for (const e of autres) anime(e, [{ opacity: 1 }, { opacity: 0 }], { duration: 140 });
+        anime(im, [{ opacity: 0 }, { opacity: 0, offset: .64 }, { opacity: c.o0, offset: .74 }, { opacity: c.o0 }], { duration: VOL + 60, delay: t0 });
+        for (const e of autres) anime(e, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-6px)' }], { duration: 160 });
       }
     }
     // the last rule of the list has no film of its own
