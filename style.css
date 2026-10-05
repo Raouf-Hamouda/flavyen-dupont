@@ -2245,3 +2245,8 @@ body.net #poignee {
     height: 20px;
   }
 }
+
+/* on a phone the travelling line starts as the whole picture of the film */
+.trait-v.photo b {
+  background: center / cover no-repeat;
+}

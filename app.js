@@ -628,21 +628,22 @@
   });
 
   // ---------------------------------------------------------------- strip <-> list: a film is the same object in both views
-  // To the list: every clip of the edit lies down. Its frames close into a line at the foot of the clip, the line
-  // travels to the film's row and stretches into the rule of that row; its name travels with it and grows into the
-  // title of the row. The window closes into a line the same way. Films nearest the playhead leave first.
-  // Back to the strip is the same film played backwards: rules shorten into clips and open into frames, titles
-  // shrink back into names, the window opens.
+  // To the list: every film of the strip lies down. Its picture (on a wide screen, the frames of its clip) closes
+  // into a line at its foot, the line travels to the film's row and stretches into the rule of that row. Its name
+  // travels with it and grows into the title of the row; on a phone, where pictures carry no name, the title comes
+  // out of the line. The window closes into a line the same way. Films nearest the playhead leave first.
+  // Back to the strip is the same film played backwards.
   const passage = document.body.appendChild(el('div'));
   passage.id = 'passage';
   let enPassage = false;
   function passer(vers) {
     if (enPassage) return;
-    if (vertical || leger) return voir(vers);
+    if (leger) return voir(vers);
     enPassage = true;
     const versListe = vers === 'liste';
     const DOUX = 'cubic-bezier(.65,0,.35,1)', SORTIE = 'cubic-bezier(.22,1,.36,1)';
     const ENCRE = 'rgb(12,12,12)', GRIS = 'rgb(155,155,155)';
+    const FOND = vertical ? 'rgb(236,236,236)' : 'rgba(12,12,12,0)', FORT = 'rgba(12,12,12,.6)', FIN = 'rgba(12,12,12,.16)';
     const anims = [];
     const anime = function (e, images, options) {
       const a = e.animate(images, Object.assign({ fill: 'both' }, options));
@@ -651,25 +652,48 @@
     };
     const boiteP = r => ({ left: r.x + 'px', top: r.y + 'px', width: r.w + 'px', height: r.h + 'px' });
     document.body.classList.add('net');
-    // the edit holds still while it is being laid down
-    cible = pos;
+    // the strip holds still while it is being laid down; on a phone it first sits exactly on a film
+    const mi = vertical ? L / 2 : innerWidth / 2, hautB = bandeEl.offsetTop, rangs = $$('.rang', liste);
+    if (vertical && span) {
+      const decale = mi - S / 2 + PAS * 2.5;
+      cible = Math.round((cible + decale) / PAS) * PAS - decale;
+    }
+    pos = cible;
     navette = 0;
 
-    const mi = innerWidth / 2, hautB = bandeEl.offsetTop, rangs = $$('.rang', liste);
     // going to the list, the row of the film under the playhead is brought into view
-    const nCourant = Math.max(0, sous ? visibles.indexOf(sous.f) : 0);
-    if (versListe && rangs[nCourant]) liste.scrollTop = clamp(rangs[nCourant].offsetTop - liste.clientHeight / 2, 0, liste.scrollHeight);
+    const filmCourant = vertical ? luF : sous ? sous.f : -1;
+    const nCourant = Math.max(0, visibles.indexOf(filmCourant));
+    // ... and the list always starts on a whole row, never on a row cut by its top edge
+    if (versListe && rangs[nCourant]) {
+      const voulu = clamp(rangs[nCourant].offsetTop - liste.clientHeight / 2, 0, liste.scrollHeight - liste.clientHeight);
+      let debut = 0;
+      for (const r of rangs) if (r.offsetTop <= voulu + 1) debut = r.offsetTop;
+      liste.scrollTop = debut;
+    }
     const haut = liste.offsetTop - liste.scrollTop, gauche = liste.offsetLeft, large = liste.clientWidth;
     const bas = liste.offsetTop + liste.clientHeight;
-    // the copy of a film's clip that is nearest the playhead
-    const copie = function (f) {
-      let mieux = null, dm = 1e12;
-      for (const it of items) {
-        if (it.f !== f) continue;
-        const p = ((it.x - pos + mi + MARGE) % span + span) % span - MARGE, d = Math.abs(p + it.w / 2 - mi);
-        if (d < dm) { dm = d; mieux = { it, p }; }
+    // where a film stands in the strip: the copy of it nearest the playhead, as a picture box and its foot line
+    const source = function (f) {
+      let it = null, p = 0, dm = 1e12;
+      for (const i of items) {
+        if (i.f !== f) continue;
+        const q = vertical ? ((i.j * PAS - pos) % span + span) % span - PAS * 2.5 : ((i.x - pos + mi + MARGE) % span + span) % span - MARGE;
+        const d = Math.abs(q + (vertical ? S : i.w) / 2 - mi);
+        if (d < dm) { dm = d; it = i; p = q; }
       }
-      return mieux;
+      if (!it) return null;
+      const d = FILMS[f], actif = f === filmCourant;
+      if (vertical) {
+        const y = clamp(hautB + p, -S - 60, innerHeight + 60);
+        return { actif, h: S, o0: actif ? 1 : .35, gris: !!d.nb, photo: true, image: affiche(f),
+          S: { x: 16, y, w: W, h: S }, F: { x: 16, y: y + S - 1, w: W, h: 1 },
+          petit: { transform: `translate(16px,${(y + S - 34).toFixed(1)}px) scale(.8)`, color: ENCRE, opacity: 0 } };
+      }
+      const x = clamp(p, -it.w - 80, innerWidth + 80), y = hautB + it.el.offsetTop, h = hp - 30;
+      return { actif, h, o0: actif ? 1 : .38, gris: !actif || !!d.nb, photo: false, image: `affiches/${d.slug}-pellicule.jpg`,
+        S: { x, y: y + 22, w: it.w - 3, h }, F: { x, y: y + 22 + h - 1, w: it.w - 3, h: 1 },
+        petit: { transform: `translate(${x.toFixed(1)}px,${y}px) scale(.56)`, color: actif ? ENCRE : GRIS, opacity: 1 } };
     };
     // rows fully in view travel; the row nearest the current film leaves first
     const vues = [], hors = [];
@@ -684,46 +708,41 @@
     const DUREE_P = (versListe ? 140 : 0) + loin * PAS_T + VOL + 160;
 
     for (const o of vues) {
-      const f = visibles[o.n], d = FILMS[f], c = copie(f);
+      const c = source(visibles[o.n]);
       if (!c) continue;
-      const rang = Math.abs(o.n - centre), actif = sous && sous.f === f;
-      const titre = $('.titre', o.r);
-      const cx = clamp(c.p, -c.it.w - 80, innerWidth + 80), cy = hautB + c.it.el.offsetTop, hc = hp - 30;
-      const S = { x: cx, y: cy + 22, w: c.it.w - 3, h: hc }, F = { x: cx, y: cy + 22 + hc - 1, w: c.it.w - 3, h: 1 };
+      const rang = Math.abs(o.n - centre), titre = $('.titre', o.r);
       const R = { x: gauche, y: o.y, w: large, h: 1 };
-      // the name of the clip <-> the title of the row
+      // the name of the film <-> the title of the row
       const nom = passage.appendChild(el('div', 'rang vol'));
-      nom.appendChild(titre.cloneNode(true));
-      const petit = { transform: `translate(${cx.toFixed(1)}px,${cy}px) scale(.56)`, color: actif ? ENCRE : GRIS };
-      const grand = { transform: `translate(${gauche + titre.offsetLeft}px,${haut + titre.offsetTop}px) scale(1)`, color: ENCRE };
-      // the frames of the clip <-> the rule of the row
-      const trait = passage.appendChild(el('i', 'trait-v' + (actif && !d.nb ? '' : ' gris')));
+      const copieT = nom.appendChild(titre.cloneNode(true));
+      copieT.style.width = titre.offsetWidth + 'px';
+      const grand = { transform: `translate(${gauche + titre.offsetLeft}px,${haut + titre.offsetTop}px) scale(1)`, color: ENCRE, opacity: 1 };
+      // the picture of the film <-> the rule of the row
+      const trait = passage.appendChild(el('i', 'trait-v' + (c.gris ? ' gris' : '') + (c.photo ? ' photo' : '')));
       const im = trait.appendChild(el('b'));
-      im.style.backgroundImage = `url("affiches/${d.slug}-pellicule.jpg")`;
-      im.style.height = hc + 'px';
-      const o0 = actif ? 1 : .38;
-      const CLAIR = 'rgba(12,12,12,0)', FORT = 'rgba(12,12,12,.6)', FIN = 'rgba(12,12,12,.16)';
+      im.style.backgroundImage = `url("${c.image}")`;
+      im.style.height = c.h + 'px';
       const autres = [...o.r.children].filter(e => e !== titre);
       anime(titre, [{ opacity: 0 }, { opacity: 0 }], { duration: DUREE_P });
       if (versListe) {
         const t0 = 140 + rang * PAS_T;
-        anime(nom, [petit, grand], { duration: VOL, delay: t0, easing: DOUX });
+        anime(nom, [c.petit, grand], { duration: VOL, delay: t0, easing: DOUX });
         anime(trait, [
-          Object.assign(boiteP(S), { backgroundColor: CLAIR, easing: DOUX }),
-          Object.assign(boiteP(F), { backgroundColor: FORT, offset: .36, easing: DOUX }),
+          Object.assign(boiteP(c.S), { backgroundColor: FOND, easing: DOUX }),
+          Object.assign(boiteP(c.F), { backgroundColor: FORT, offset: .36, easing: DOUX }),
           Object.assign(boiteP(R), { backgroundColor: FIN }),
         ], { duration: VOL + 60, delay: t0 - 140 });
-        anime(im, [{ opacity: o0 }, { opacity: 0, offset: .36 }, { opacity: 0 }], { duration: VOL + 60, delay: t0 - 140 });
+        anime(im, [{ opacity: c.o0 }, { opacity: 0, offset: .36 }, { opacity: 0 }], { duration: VOL + 60, delay: t0 - 140 });
         for (const e of autres) anime(e, [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 520, delay: t0 + VOL - 420, easing: SORTIE });
       } else {
         const t0 = rang * PAS_T;
-        anime(nom, [grand, petit], { duration: VOL, delay: t0, easing: DOUX });
+        anime(nom, [grand, c.petit], { duration: VOL, delay: t0, easing: DOUX });
         anime(trait, [
           Object.assign(boiteP(R), { backgroundColor: FIN, easing: DOUX }),
-          Object.assign(boiteP(F), { backgroundColor: FORT, offset: .64, easing: SORTIE }),
-          Object.assign(boiteP(S), { backgroundColor: CLAIR }),
+          Object.assign(boiteP(c.F), { backgroundColor: FORT, offset: .64, easing: SORTIE }),
+          Object.assign(boiteP(c.S), { backgroundColor: FOND }),
         ], { duration: VOL + 60, delay: t0 });
-        anime(im, [{ opacity: 0 }, { opacity: 0, offset: .64 }, { opacity: o0 }], { duration: VOL + 60, delay: t0 });
+        anime(im, [{ opacity: 0 }, { opacity: 0, offset: .64 }, { opacity: c.o0 }], { duration: VOL + 60, delay: t0 });
         for (const e of autres) anime(e, [{ opacity: 1 }, { opacity: 0 }], { duration: 240, delay: t0 * .5 });
       }
     }
@@ -737,19 +756,22 @@
       anime(l, versListe ? [{ opacity: 0 }, { opacity: 0, offset: .7 }, { opacity: 1 }] : [{ opacity: 1 }, { opacity: 0, offset: .25 }, { opacity: 0 }], { duration: DUREE_P });
     }
 
-    // the real clips are replaced by the travelling ones for the whole passage
+    // the real pictures are replaced by the travelling ones for the whole passage
     for (const it of items) if (!it.loin) anime(it.el, [{ opacity: 0 }, { opacity: 0 }], { duration: DUREE_P });
     const noms = $$('.nompiste', piste), meubles = [$('.axe'), lu, regle, $('#outils'), $('#poignee')];
     const FERME = 'translateX(-50%) scaleY(0)', OUVERT = 'translateX(-50%) scaleY(1)';
     if (versListe) {
       anime(liste, [{ opacity: 1 }, { opacity: 1 }], { duration: DUREE_P });
       for (const e of [...noms, ...meubles]) anime(e, [{ opacity: 1 }, { opacity: 0 }], { duration: 260 });
+      // the big title of the phone strip sinks away
+      anime(titres, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(26px)' }], { duration: 420, easing: DOUX });
       // the window closes into a line, as the clips do
       anime(fenetre, [{ transform: OUVERT }, { transform: FERME }], { duration: 560, easing: DOUX });
     } else {
       anime(bandeEl, [{ opacity: 1, transform: 'none' }, { opacity: 1, transform: 'none' }], { duration: DUREE_P });
       for (const e of noms) anime(e, [{ opacity: 0 }, { opacity: 1 }], { duration: 420, delay: DUREE_P - 520 });
       for (const e of meubles) anime(e, [{ opacity: 0, transform: 'none' }, { opacity: 1, transform: 'none' }], { duration: 420, delay: DUREE_P - 520 });
+      anime(titres, [{ opacity: 0, transform: 'translateY(26px)' }, { opacity: 1, transform: 'none' }], { duration: 620, delay: DUREE_P - 700, easing: SORTIE });
       anime(fenetre, [{ opacity: 1, transform: FERME }, { opacity: 1, transform: OUVERT }], { duration: 700, delay: Math.max(0, DUREE_P - 860), easing: SORTIE });
     }
     setTimeout(() => finir(vers, anims), DUREE_P);
