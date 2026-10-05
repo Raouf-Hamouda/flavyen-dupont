@@ -695,11 +695,12 @@
         S: { x, y: y + 22, w: it.w - 3, h }, F: { x, y: y + 22 + h - 1, w: it.w - 3, h: 1 },
         petit: { transform: `translate(${x.toFixed(1)}px,${y}px) scale(.56)`, color: actif ? ENCRE : GRIS, opacity: 1 } };
     };
-    // rows fully in view travel; the row nearest the current film leaves first
-    const vues = [], hors = [];
+    // every row that can be seen travels, even one cut by the edge of the list: a row left behind would read as
+    // the list hanging on. The row nearest the current film leaves first.
+    const vues = [];
     rangs.forEach(function (r, n) {
       const y = haut + r.offsetTop;
-      (y >= liste.offsetTop - 1 && y + r.offsetHeight <= bas + 1 ? vues : hors).push({ r, n, y, h: r.offsetHeight });
+      if (y + r.offsetHeight > liste.offsetTop && y < bas) vues.push({ r, n, y, h: r.offsetHeight });
     });
     const centre = vues.length ? vues.reduce((m, o) => Math.abs(o.n - nCourant) < Math.abs(m.n - nCourant) ? o : m).n : 0;
     let loin = 0;
@@ -726,7 +727,7 @@
       anime(titre, [{ opacity: 0 }, { opacity: 0 }], { duration: DUREE_P });
       if (versListe) {
         const t0 = 140 + rang * PAS_T;
-        anime(nom, [c.petit, grand], { duration: VOL, delay: t0, easing: DOUX });
+        anime(nom, vertical ? [c.petit, { opacity: 0, offset: .4 }, grand] : [c.petit, grand], { duration: VOL, delay: t0, easing: DOUX });
         anime(trait, [
           Object.assign(boiteP(c.S), { backgroundColor: FOND, easing: DOUX }),
           Object.assign(boiteP(c.F), { backgroundColor: FORT, offset: .36, easing: DOUX }),
@@ -736,18 +737,16 @@
         for (const e of autres) anime(e, [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 520, delay: t0 + VOL - 420, easing: SORTIE });
       } else {
         const t0 = rang * PAS_T;
-        anime(nom, [grand, c.petit], { duration: VOL, delay: t0, easing: DOUX });
+        anime(nom, vertical ? [grand, { opacity: 0, offset: .5 }, c.petit] : [grand, c.petit], { duration: VOL, delay: t0, easing: DOUX });
         anime(trait, [
           Object.assign(boiteP(R), { backgroundColor: FIN, easing: DOUX }),
           Object.assign(boiteP(c.F), { backgroundColor: FORT, offset: .64, easing: SORTIE }),
           Object.assign(boiteP(c.S), { backgroundColor: FOND }),
         ], { duration: VOL + 60, delay: t0 });
         anime(im, [{ opacity: 0 }, { opacity: 0, offset: .64 }, { opacity: c.o0 }], { duration: VOL + 60, delay: t0 });
-        for (const e of autres) anime(e, [{ opacity: 1 }, { opacity: 0 }], { duration: 240, delay: t0 * .5 });
+        for (const e of autres) anime(e, [{ opacity: 1 }, { opacity: 0 }], { duration: 140 });
       }
     }
-    // rows cut by the edge of the list do not travel: they only fade
-    for (const o of hors) anime(o.r, versListe ? [{ opacity: 0 }, { opacity: 0, offset: .8 }, { opacity: 1 }] : [{ opacity: 1 }, { opacity: 0, offset: .2 }, { opacity: 0 }], { duration: DUREE_P });
     // the last rule of the list has no film of its own
     const dernier = vues.find(o => o.n === rangs.length - 1);
     if (dernier) {
@@ -781,12 +780,16 @@
     anims.forEach(a => a.cancel());
     passage.innerHTML = '';
     roulePenche = '';
-    // the views are in their final state; give them their own transitions back on the next frame
-    requestAnimationFrame(function () {
+    // the browser must take in the final state now, while transitions are still off: otherwise the view that
+    // has just left is seen once more, fading out, when they come back on
+    void getComputedStyle(liste).opacity;
+    void getComputedStyle(bandeEl).opacity;
+    // the views are in their final state; give them their own transitions back two frames later
+    requestAnimationFrame(() => requestAnimationFrame(function () {
       document.body.classList.remove('net');
       enPassage = false;
       dernierGeste = performance.now();
-    });
+    }));
   }
   $('#accueil').onclick = () => voir('bande');
 
