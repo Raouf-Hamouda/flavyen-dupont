@@ -240,37 +240,55 @@
   const fim = fenetre.appendChild(new Image());
   fim.alt = '';
   fim.decoding = 'async';
-  // Sound on the main page, off until asked for. The previews are silent files, so the sound is the edit's own:
-  // a small tick each time the playhead crosses a cut, a lower one when a film opens.
-  let ac = null, sonOn = false, dernierTic = 0;
-  function tic(freq, vol, duree) {
-    if (!sonOn) return;
-    const now = performance.now();
-    if (now - dernierTic < 45) return;
-    dernierTic = now;
-    try {
-      ac = ac || new (window.AudioContext || window.webkitAudioContext)();
-      if (ac.state === 'suspended') ac.resume();
-      const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain();
-      o.type = 'triangle';
-      o.frequency.setValueAtTime(freq, t);
-      o.frequency.exponentialRampToValueAtTime(freq * .5, t + duree);
-      g.gain.setValueAtTime(vol, t);
-      g.gain.exponentialRampToValueAtTime(.0001, t + duree);
-      o.connect(g).connect(ac.destination);
-      o.start(t);
-      o.stop(t + duree + .01);
-    } catch (e) {}
-  }
+  // Sound on the main page, off until asked for. The previews are silent files, so with the sound on the window
+  // plays the film itself, from Vimeo, once the playhead rests on it: the film fades in over its preview, the
+  // window takes the film's true shape, and the playhead reads the film's real timecode. Moving on cuts it.
   const sonB = $('#sonAccueil');
+  let sonOn = false, vw = null, vwF = -1, vwVoulu = -1, vwT = 0, vwTemps = 0;
+  function couperVimeo() {
+    clearTimeout(vwT);
+    const fr = $('iframe', fenetre);
+    if (fr) fr.remove();
+    vw = null;
+    vwF = -1;
+    fenetre.classList.remove('son');
+    fenetre.style.removeProperty('--ratio');
+  }
+  function lancerVimeo(f) {
+    const d = FILMS[f];
+    if (!sonOn || !d.vimeo || !window.Vimeo) return;
+    vwF = f;
+    vwTemps = 0;
+    const fr = el('iframe');
+    fr.src = `https://player.vimeo.com/video/${d.vimeo}?autoplay=1&muted=0&loop=1&controls=0&title=0&byline=0&portrait=0&dnt=1&playsinline=1`;
+    fr.allow = 'autoplay; fullscreen';
+    fenetre.appendChild(fr);
+    vw = new window.Vimeo.Player(fr);
+    vw.setVolume(1).catch(function () {});
+    vw.on('timeupdate', function (e) {
+      if (vwF !== f) return;
+      vwTemps = e.seconds;
+      // the film is really playing: it takes the window over, in its own shape
+      if (e.seconds > .05 && !fenetre.classList.contains('son')) {
+        fenetre.style.setProperty('--ratio', clamp(d.l / d.h || 16 / 9, .5, 2.4).toFixed(4));
+        fenetre.classList.add('son');
+      }
+    });
+  }
+  // called every frame with the film the window should be sounding (-1 for none)
+  function sonner(f) {
+    if (f === vwVoulu) return;
+    vwVoulu = f;
+    couperVimeo();
+    if (f >= 0) vwT = setTimeout(() => lancerVimeo(f), 350);
+  }
   function reglerSon(on) {
     sonOn = on;
     sonB.classList.toggle('actif', on);
     $('.mono', sonB).textContent = on ? T('Son', 'Sound') : T('Son coupé', 'Sound off');
-    try { localStorage.setItem('son', on ? '1' : '0'); } catch (e) {}
   }
-  try { reglerSon(localStorage.getItem('son') === '1'); } catch (e) { reglerSon(false); }
-  sonB.addEventListener('click', function () { reglerSon(!sonOn); tic(900, .05, .09); });
+  reglerSon(false);
+  sonB.addEventListener('click', () => reglerSon(!sonOn));
 
   // the reminder under the sliders names the keys of this machine, or the gestures of a touch screen
   const MAC = /Mac|iPhone|iPad|iPod/i.test(navigator.platform || navigator.userAgent);
@@ -413,7 +431,6 @@
   function cadrer(f) {
     const d = FILMS[f];
     fenetre.classList.toggle('nb', !!d.nb);
-    tic(1500, .035, .045);
     fim.src = affiche(f);
     vif.classList.remove('vivant');
     vif.src = boucle(f);
@@ -434,7 +451,7 @@
     if (Math.abs(zc - z) < .0005) z = zc;
     zoomer(z);
     if (navette && !glisse.on && !ouvert) cible += navette * 60 * z * dt;
-    else if (!arret && !glisse.on && !ouvert && now - dernierGeste > 2600 && vue() === 'bande') cible += 40 * dt;
+    else if (!arret && !sonOn && !glisse.on && !ouvert && now - dernierGeste > 2600 && vue() === 'bande') cible += 40 * dt;
     const avant = pos;
     pos += (cible - pos) * damp(6, dt);
     if (Math.abs(cible - pos) < .02) pos = cible;
@@ -461,7 +478,10 @@
     }
     // the hand moves fast: the playhead scrubs the film; it slows down: the film plays
     const ici = vue() === 'bande' && !ouvert;
-    if (!ici) { if (!vif.paused) vif.pause(); }
+    // with the sound on, the film itself plays once the playhead rests on it
+    sonner(sonOn && ici && !enPassage && !glisse.on && !navette && Math.abs(vs) < 40 ? sous.f : -1);
+    const filme = fenetre.classList.contains('son');
+    if (!ici || filme) { if (!vif.paused) vif.pause(); }
     else if (vif.duration) {
       if (glisse.on || Math.abs(vs) > 140) {
         if (!vif.paused) vif.pause();
@@ -470,7 +490,7 @@
       } else if (vif.paused) vif.play().catch(function () {});
     }
     const d = FILMS[sous.f];
-    const code = d.duree ? tc(sousFrac * d.duree) : tc(0);
+    const code = filme ? tc(vwTemps) : d.duree ? tc(sousFrac * d.duree) : tc(0);
     const vitesse = navette ? `${navette > 0 ? '▶' : '◀'} ${Math.abs(navette)}×  ` : '';
     if (vitesse + code !== luCode) { $('#luTc').textContent = code; teteL.textContent = luCode = vitesse + code; }
     if (sous.f !== luF) {
@@ -807,7 +827,7 @@
     // on a wide screen the filters belong to the list only: they come and go with it, inside the passage
     if (!vertical) {
       anime($('.filtres'), versListe ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 1 }, { opacity: 0 }],
-        versListe ? { duration: 420, delay: DUREE_P - 520 } : { duration: 180 });
+        versListe ? { duration: 420, delay: DUREE_P - 520 } : { duration: 1 });
     }
     if (versListe) {
       anime(liste, [{ opacity: 1 }, { opacity: 1 }], { duration: DUREE_P });
@@ -1082,7 +1102,6 @@
   function ouvrir(f, rect, depuis) {
     if (ouvert) return;
     ouvert = true;
-    tic(240, .06, .16);
     origine = rect;
     clearTimeout(reveil);
     quitter(survol);

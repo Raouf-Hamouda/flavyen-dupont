@@ -2043,13 +2043,17 @@ body.tire #fenetre {
   text-underline-offset: 6px;
   text-decoration-thickness: 1px;
 }
-/* the timeline has its tracks: the filters only stay in the list */
-body.temps[data-vue="bande"] .filtres {
-  opacity: 0;
-  pointer-events: none;
-}
+/* on a wide screen the filters exist in the list and nowhere else: not on the timeline (it has its tracks), not
+   on About or Contact, not while the page loads. They are gone at once, never seen fading over another view. */
 .filtres {
   transition: opacity .4s;
+}
+@media (min-width: 700px) {
+  body:not([data-vue="liste"]) .filtres {
+    opacity: 0;
+    pointer-events: none;
+    transition: none;
+  }
 }
 
 /* ---------- phone: more air under the header, now that the words sit under the squares */
@@ -2282,4 +2286,19 @@ body.temps #sonAccueil {
 body.net #sonAccueil,
 body.net .filtres {
   transition: none !important;
+}
+
+/* the film itself, with its sound, over its silent preview */
+#fenetre iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .4s;
+}
+#fenetre.son iframe {
+  opacity: 1;
 }
