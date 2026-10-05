@@ -122,7 +122,7 @@
     if (ouvert || vue() !== 'bande') return;
     e.preventDefault();
     const dy = e.deltaMode === 1 ? e.deltaY * 32 : e.deltaY;
-    if (!vertical && (e.ctrlKey || e.metaKey)) return viserZoom(zc * Math.exp(-dy * .006));
+    if (!vertical && (e.ctrlKey || e.metaKey)) return viserZoom(zc * Math.exp(-clamp(dy, -50, 50) * .006));
     if (!vertical && e.altKey) return regleHauteur(hp - dy * .25);
     arret = false;
     const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
@@ -137,12 +137,27 @@
 
   const glisse = { on: false, p: 0, bouge: 0, v: 0, t: 0 };
   const axe = e => vertical ? e.clientY : e.clientX;
+  // two fingers on a touch screen pinch the zoom; one finger drags
+  const doigts = new Map();
+  let ecart0 = 1, zPince = 1;
+  const ecart = function () { const [a, b] = [...doigts.values()]; return Math.max(1, Math.abs(a - b)); };
+  const leverDoigt = function (e) { doigts.delete(e.pointerId); };
+  addEventListener('pointerup', leverDoigt);
+  addEventListener('pointercancel', leverDoigt);
   bandeEl.addEventListener('pointerdown', function (e) {
+    if (e.pointerType === 'touch' && !vertical) {
+      doigts.set(e.pointerId, e.clientX);
+      if (doigts.size === 2) { ecart0 = ecart(); zPince = zc; glisse.on = false; bandeEl.classList.remove('prise'); return; }
+    }
     glisse.on = true; glisse.p = axe(e); glisse.bouge = 0; glisse.v = 0; glisse.t = performance.now();
     navette = 0; arret = false;
     bandeEl.classList.add('prise');
   });
   addEventListener('pointermove', function (e) {
+    if (doigts.has(e.pointerId)) {
+      doigts.set(e.pointerId, e.clientX);
+      if (doigts.size === 2) return viserZoom(zPince * ecart() / ecart0);
+    }
     if (!glisse.on) return;
     const d = glisse.p - axe(e), now = performance.now();
     glisse.bouge += Math.abs(d);
@@ -225,6 +240,11 @@
   const fim = fenetre.appendChild(new Image());
   fim.alt = '';
   fim.decoding = 'async';
+  // the reminder under the sliders names the keys of this machine, or the gestures of a touch screen
+  const MAC = /Mac|iPhone|iPad|iPod/i.test(navigator.platform || navigator.userAgent);
+  $('#aide').textContent = tactile
+    ? T('Glissez pour parcourir · pincez pour zoomer', 'Drag to browse · pinch to zoom')
+    : `${MAC ? '⌘' : 'Ctrl'} + ${T('molette', 'wheel')} zoom · ${MAC ? '⌥' : 'Alt'} + ${T('molette hauteur', 'wheel height')} · J K L ${T('lecture', 'play')}`;
   // the controls of the edit: zoom and track height, as two sliders, and the handle under the tracks
   $('#zoomR').addEventListener('input', function () { viserZoom(Math.exp(+this.value)); });
   $('#hautR').addEventListener('input', function () { regleHauteur(+this.value); });

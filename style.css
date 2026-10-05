@@ -2233,3 +2233,15 @@ body.net #poignee {
     flex: none;
   }
 }
+
+/* Firefox draws its own track under a slider: ours is the line */
+.outils input[type="range"]::-moz-range-track {
+  background: transparent;
+}
+/* a touch screen has no hover: the handle under the tracks is always there to grab */
+@media (hover: none) {
+  body.temps #poignee {
+    opacity: .5;
+    height: 20px;
+  }
+}
