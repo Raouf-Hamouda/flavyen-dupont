@@ -19,21 +19,14 @@
     return `${pad(Math.floor(s / 3600))}:${pad(Math.floor(s / 60) % 60)}:${pad(s % 60)}:${pad(f % IPS)}`;
   };
   const tactile = matchMedia('(hover: none)').matches;
-  // French for a French browser, English for everyone else
-  const EN = !/^fr\b/i.test((navigator.languages && navigator.languages[0]) || navigator.language || 'fr');
-  const T = (fr, en) => EN ? en : fr;
-  if (EN) {
-    document.documentElement.lang = 'en';
-    for (const e of document.querySelectorAll('[data-en]')) e.textContent = e.dataset.en;
-  }
   const vue = () => document.body.dataset.vue;
 
   // ---------------------------------------------------------------- content: his 25 projects, from donnees.js
   const CATS = { pub: 'Pub', fiction: 'Fiction' };
   const FILMS = window.FILMS;
-  const boucle = f => `affiches/${FILMS[f].slug}${EXT}`;
-  const nette = f => FILMS[f].hd ? `affiches/${FILMS[f].slug}-hd.jpg` : affiche(f);
-  const affiche = f => `affiches/${FILMS[f].slug}${FILMS[f].hd ? '-m' : ''}.jpg`;
+  const boucle = f => `../affiches/${FILMS[f].slug}${EXT}`;
+  const nette = f => FILMS[f].hd ? `../affiches/${FILMS[f].slug}-hd.jpg` : affiche(f);
+  const affiche = f => `../affiches/${FILMS[f].slug}${FILMS[f].hd ? '-m' : ''}.jpg`;
   const etiquette = d => [CATS[d.cat], d.an].filter(Boolean).join(' · ');
 
   // light mode: asked for by the system (reduced motion), or switched on when frames come too slowly
@@ -60,7 +53,6 @@
   vif.addEventListener('playing', () => vif.classList.add('vivant'));
 
   function construireBande() {
-    if (!vertical) return construireTemps();
     piste.innerHTML = '';
     items = [];
     survol = null;
@@ -121,25 +113,14 @@
     // the list and the credits panel scroll by themselves; only the strip takes the wheel over
     if (ouvert || vue() !== 'bande') return;
     e.preventDefault();
-    const dy = e.deltaMode === 1 ? e.deltaY * 32 : e.deltaY;
-    if (!vertical && (e.ctrlKey || e.metaKey)) return viserZoom(zc * Math.exp(-dy * .006));
-    if (!vertical && e.altKey) return regleHauteur(hp - dy * .25);
-    arret = false;
     const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
     pousser((e.deltaMode === 1 ? d * 32 : d) * 1.15);
   }, { passive: false });
-
-  // Safari reports a trackpad pinch with its own events, not as a wheel
-  let zGeste = 1;
-  const pince = () => !vertical && !ouvert && vue() === 'bande';
-  addEventListener('gesturestart', function (e) { if (pince()) { e.preventDefault(); zGeste = zc; } });
-  addEventListener('gesturechange', function (e) { if (pince()) { e.preventDefault(); viserZoom(zGeste * e.scale); } });
 
   const glisse = { on: false, p: 0, bouge: 0, v: 0, t: 0 };
   const axe = e => vertical ? e.clientY : e.clientX;
   bandeEl.addEventListener('pointerdown', function (e) {
     glisse.on = true; glisse.p = axe(e); glisse.bouge = 0; glisse.v = 0; glisse.t = performance.now();
-    navette = 0; arret = false;
     bandeEl.classList.add('prise');
   });
   addEventListener('pointermove', function (e) {
@@ -208,223 +189,6 @@
     const penche = vertical || leger ? '0' : (-lean * .22).toFixed(2);
     if (penche !== roulePenche) titres.style.transform = `skewX(${roulePenche = penche}deg)`;
     lire(proche);
-  }
-
-  // ---------------------------------------------------------------- on a wide screen the strip is an edit timeline
-  // The films lie end to end like clips in an edit, each on the track of its kind (V1 pub, V2 fiction, V3 the rest),
-  // a longer film making a longer clip. The playhead stands still in the middle; the wheel or the hand slides the
-  // edit under it, and the film it crosses plays in the window above it, scrubbed by the playhead while it moves fast.
-  // Left alone, the edit plays on by itself.
-  const PISTES = ['pub', 'fiction', 'autre'], MARGE = 1500, ZMIN = .35, ZMAX = 5;
-  // Like an editor's timeline it can be resized: the zoom stretches the clips around the playhead (cmd + wheel,
-  // a pinch, + and -, or the slider), the track height makes them taller (alt + wheel, or the handle under the
-  // tracks). J, K and L shuttle the playhead as in an edit suite: L forward 1x 2x 4x 8x, J backward, K stops.
-  let z = 1, zc = 1, hp = 66, navette = 0, arret = false, nPistes = 3;
-  const fenetre = document.body.appendChild(el('div'));
-  fenetre.id = 'fenetre';
-  const fim = fenetre.appendChild(new Image());
-  fim.alt = '';
-  fim.decoding = 'async';
-  // the controls of the edit: zoom and track height, as two sliders, and the handle under the tracks
-  $('#zoomR').addEventListener('input', function () { viserZoom(Math.exp(+this.value)); });
-  $('#hautR').addEventListener('input', function () { regleHauteur(+this.value); });
-  $$('.outils [data-z]').forEach(b => b.addEventListener('click', () => viserZoom(zc * (+b.dataset.z))));
-  const poignee = $('#poignee'), tire = { on: false, y: 0, h: 0 };
-  poignee.addEventListener('pointerdown', function (e) {
-    e.stopPropagation();
-    tire.on = true; tire.y = e.clientY; tire.h = hp;
-    poignee.setPointerCapture(e.pointerId);
-    document.body.classList.add('tire');
-  });
-  poignee.addEventListener('pointermove', function (e) {
-    if (tire.on) regleHauteur(tire.h + (e.clientY - tire.y) / Math.max(1, nPistes));
-  });
-  const lacherP = function () { tire.on = false; document.body.classList.remove('tire'); };
-  poignee.addEventListener('pointerup', lacherP);
-  poignee.addEventListener('pointercancel', lacherP);
-  // the head of the playhead carries the timecode of the film it is reading
-  const teteL = $('.axe').appendChild(el('span', 'tetel mono'));
-  // a long film makes a long clip, but a short film of 15 s still has room for its name
-  const longueur = f => Math.round(60 + 34 * Math.sqrt(FILMS[f].duree || 60));
-  let sous = null, sousF = -1, sousFrac = 0;
-  function construireTemps() {
-    piste.innerHTML = '';
-    items = [];
-    survol = null;
-    sousF = -1;
-    W = clamp(innerWidth * .156, 150, 290);
-    S = W;
-    L = innerWidth;
-    document.documentElement.style.setProperty('--w', W + 'px');
-    const n = visibles.length;
-    if (!n) { span = 0; return; }
-    // the tracks stay in place whatever is picked, so another one can always be picked
-    const pistes = PISTES.filter(c => FILMS.some(d => (d.cat || 'autre') === c));
-    nPistes = pistes.length;
-    document.documentElement.style.setProperty('--np', nPistes);
-    regleHauteur(hp);
-    // the track headers work like the filters of the list: a click keeps only that track (the others go grey
-    // and can be picked in turn), a second click on it brings them all back
-    pistes.forEach(function (c, k) {
-      const nom = piste.appendChild(el('button', 'nompiste mono' + (filtre === c ? ' solo' : filtre === 'tout' ? '' : ' eteint'), `V${k + 1} ${CATS[c] || T('Autre', 'Other')}`));
-      nom.style.top = `calc(${k} * var(--hp))`;
-      nom.addEventListener('pointerdown', e => e.stopPropagation());
-      nom.addEventListener('click', () => filtrer(filtre === c ? 'tout' : c));
-    });
-    const seq = [];
-    let t = 0;
-    visibles.forEach(function (f, k) {
-      seq.push({ f, k, x: t, w: longueur(f), y: pistes.indexOf(FILMS[f].cat || 'autre') });
-      t += longueur(f);
-    });
-    PAS = t / n;
-    // enough copies of the edit to go round the screen even zoomed all the way out
-    const jeux = Math.max(1, Math.ceil((innerWidth + MARGE * 2) / (t * ZMIN)));
-    for (let j = 0; j < jeux; j++) {
-      for (const s of seq) {
-        const d = FILMS[s.f], a = el('a', 'clip' + (d.nb ? ' nb' : ''));
-        a.style.width = s.w * z - 3 + 'px';
-        a.style.top = `calc(${s.y} * var(--hp))`;
-        const cadre = a.appendChild(el('div', 'cadre'));
-        // the clip shows its own frames along its length, as an edit does
-        cadre.style.backgroundImage = `url("affiches/${d.slug}-pellicule.jpg")`;
-        // the name sits above its clip, outside the frames
-        const im = a.appendChild(el('span', 'etiq'));
-        im.append(el('b', '', d.g), el('i', '', d.i), el('span', 'mono', d.duree ? tc(d.duree).slice(3, 8) : ''));
-        const it = { el: a, cadre, im, f: s.f, n: s.k, bx: s.x + j * t, bw: s.w, x: 0, w: 0, vis: false, loin: false };
-        it.x = it.bx * z; it.w = it.bw * z;
-        // a clip under the playhead opens; any other clip is first brought under the playhead
-        a.addEventListener('click', function () {
-          if (glisse.bouge > 6) return;
-          if (sous === it) return ouvrir(it.f, fenetre.getBoundingClientRect(), fenetre);
-          cible += ((it.x + it.w / 2 - pos) % span + span * 1.5) % span - span / 2;
-          dernierGeste = performance.now();
-        });
-        piste.appendChild(a);
-        items.push(it);
-      }
-    }
-    spanB = t * jeux;
-    span = spanB * z;
-    posVu = NaN;
-    luF = -1;
-  }
-  let spanB = 0, zVu = 1, posVu = NaN, zPose = 0;
-  // the zoom keeps the playhead where it is: everything is stretched around it
-  function zoomer(nz) {
-    if (nz === zVu || !spanB) return;
-    const k = nz / zVu;
-    pos *= k; cible *= k;
-    zVu = nz;
-    span = spanB * nz;
-    for (const it of items) {
-      it.x = it.bx * nz; it.w = it.bw * nz;
-      it.el.style.width = (it.w - 3).toFixed(1) + 'px';
-    }
-    $('#zoomR').value = Math.log(nz);
-  }
-  function regleHauteur(h) {
-    // taller tracks, but the window above always keeps some room
-    const max = Math.max(52, (innerHeight - 440) / Math.max(1, nPistes));
-    hp = clamp(h, 52, max);
-    document.body.style.setProperty('--hp', hp.toFixed(1) + 'px');
-    $('#hautR').value = hp;
-    $('#hautR').max = Math.round(max);
-  }
-  function viserZoom(nz) {
-    zc = clamp(nz, ZMIN, ZMAX);
-    dernierGeste = performance.now();
-  }
-  // the arrows step from clip to clip, from wherever the playhead is heading
-  function sauter(sens) {
-    if (!span || !items.length) return;
-    const x = (cible % span + span) % span, i = items.findIndex(it => x >= it.x && x < it.x + it.w);
-    const it = items[((i < 0 ? 0 : i) + sens + items.length) % items.length];
-    cible += ((it.x + it.w / 2 - cible) % span + span * 1.5) % span - span / 2;
-    navette = 0;
-    arret = false;
-    dernierGeste = performance.now();
-  }
-  function navetter(sens) {
-    // L/J: start, then double; the other direction first slows down, then turns round
-    if (!sens) { navette = 0; arret = true; cible = pos; return; }
-    if (Math.sign(navette) === sens) navette = clamp(navette * 2, -8, 8);
-    else navette = navette ? 0 : sens;
-    arret = !navette;
-    dernierGeste = performance.now();
-  }
-  fenetre.addEventListener('click', function () {
-    if (sous && glisse.bouge <= 6) ouvrir(sous.f, fenetre.getBoundingClientRect(), fenetre);
-  });
-  // the window takes the shape of the film it shows
-  function cadrer(f) {
-    const d = FILMS[f];
-    fenetre.style.setProperty('--ratio', clamp(d.l / d.h || 1.78, .8, 2.39).toFixed(3));
-    fenetre.classList.toggle('nb', !!d.nb);
-    fim.src = affiche(f);
-    vif.classList.remove('vivant');
-    vif.src = boucle(f);
-    fenetre.appendChild(vif);
-    vif.play().catch(function () {});
-  }
-  // put the playhead on a film, in the middle of its clip
-  function placer(f) {
-    const it = items.find(i => i.f === f);
-    if (!it) return;
-    pos = cible = it.x + it.w / 2;
-    vs = 0;
-  }
-  function temps(dt, now) {
-    if (!span) return;
-    const mi = innerWidth / 2;
-    z += (zc - z) * damp(10, dt);
-    if (Math.abs(zc - z) < .0005) z = zc;
-    zoomer(z);
-    if (navette && !glisse.on && !ouvert) cible += navette * 60 * z * dt;
-    else if (!arret && !glisse.on && !ouvert && now - dernierGeste > 2600 && vue() === 'bande') cible += 40 * dt;
-    const avant = pos;
-    pos += (cible - pos) * damp(6, dt);
-    if (Math.abs(cible - pos) < .02) pos = cible;
-    vs += ((pos - avant) / dt - vs) * damp(12, dt);
-    // the edit is only laid out again when it has moved or been resized
-    if (pos !== posVu || z !== zPose) {
-      posVu = pos;
-      zPose = z;
-      sous = null;
-      for (const it of items) {
-        const p = ((it.x - pos + mi + MARGE) % span + span) % span - MARGE;
-        it.vis = p < innerWidth && p + it.w > 0;
-        const loin = !it.vis;
-        if (loin !== it.loin) { it.loin = loin; it.el.style.visibility = loin ? 'hidden' : ''; }
-        if (p <= mi && p + it.w > mi) { sous = it; sousFrac = (mi - p) / it.w; }
-        if (!loin) it.el.style.transform = `translate3d(${p.toFixed(1)}px,0,0)`;
-      }
-    }
-    if (!sous) return;
-    if (sous.f !== sousF) {
-      for (const it of items) it.el.classList.toggle('actif', it.f === sous.f);
-      sousF = sous.f;
-      cadrer(sous.f);
-    }
-    // the hand moves fast: the playhead scrubs the film; it slows down: the film plays
-    const ici = vue() === 'bande' && !ouvert;
-    if (!ici) { if (!vif.paused) vif.pause(); }
-    else if (vif.duration) {
-      if (glisse.on || Math.abs(vs) > 140) {
-        if (!vif.paused) vif.pause();
-        const t = sousFrac * vif.duration;
-        if (!vif.seeking && Math.abs(vif.currentTime - t) > 1 / 24) vif.currentTime = t;
-      } else if (vif.paused) vif.play().catch(function () {});
-    }
-    const d = FILMS[sous.f];
-    const code = d.duree ? tc(sousFrac * d.duree) : tc(0);
-    const vitesse = navette ? `${navette > 0 ? '▶' : '◀'} ${Math.abs(navette)}×  ` : '';
-    if (vitesse + code !== luCode) { $('#luTc').textContent = code; teteL.textContent = luCode = vitesse + code; }
-    if (sous.f !== luF) {
-      luF = sous.f;
-      $('#luNo').textContent = `${pad(sous.n + 1)} — ${pad(visibles.length)}`;
-      $('#luMeta').textContent = etiquette(d) || 'Film';
-    }
   }
 
   // ---------------------------------------------------------------- the line reads the film under it
@@ -534,28 +298,23 @@
     rc.setTransform(d, 0, 0, d, 0, 0);
     regleVue = NaN;
   }
-  let pasVu = 0;
   function dessinerRegle() {
-    // on the timeline the ruler stretches with the zoom, around the playhead; when its marks would crowd, it
-    // counts in bigger steps
-    const zz = vertical ? 1 : z, mult = [.5, 1, 2, 5, 10].find(m => 8 * zz * m >= 6) || 10;
-    const PASR = 8 * zz * mult, long = vertical ? rh : rw, mi = vertical ? 0 : rw / 2;
+    const PASR = 8, long = vertical ? rh : rw;
     // nothing moved since the last frame: nothing to redraw
-    if (Math.abs(pos - regleVue) < .05 && PASR === pasVu) return;
+    if (Math.abs(pos - regleVue) < .05) return;
     regleVue = pos;
-    pasVu = PASR;
     rc.clearRect(0, 0, rw, rh);
     rc.fillStyle = '#0c0c0c';
     rc.font = '8.5px "IBM Plex Mono", monospace';
-    for (let k = Math.floor((pos - mi) / PASR); (k * PASR - pos + mi) < long; k++) {
-      const p = Math.round(k * PASR - pos + mi) + .5, dix = k % 10 === 0, cinq = k % 5 === 0;
+    for (let k = Math.floor(pos / PASR); (k * PASR - pos) < long; k++) {
+      const p = Math.round(k * PASR - pos) + .5, dix = k % 10 === 0, cinq = k % 5 === 0;
       const trait = dix ? 9 : cinq ? 6 : 3;
       rc.globalAlpha = dix ? .9 : cinq ? .5 : .22;
       if (vertical) { rc.fillRect(0, p, trait, 1); continue; }
       rc.fillRect(p, 0, 1, trait);
       if (dix) {
         rc.globalAlpha = .45;
-        rc.fillText(String(((k * mult * .8) % 1000 + 1000) % 1000 | 0).padStart(3, '0'), p + 3, 22);
+        rc.fillText(String(((k * PASR / 10) % 1000 + 1000) % 1000 | 0).padStart(3, '0'), p + 3, 22);
       }
     }
     rc.globalAlpha = 1;
@@ -565,10 +324,8 @@
   function construireFiltres() {
     const cats = $('#cats');
     cats.innerHTML = '';
-    for (const [id, nom] of [['tout', T('Tout', 'All')], ...Object.entries(CATS)]) {
-      const b = el('button', id === filtre ? 'actif' : '');
-      const combien = id === 'tout' ? FILMS.length : FILMS.filter(f => f.cat === id).length;
-      b.append(el('span', '', nom), el('sup', 'mono', pad(combien)));
+    for (const [id, nom] of [['tout', 'Tout'], ...Object.entries(CATS)]) {
+      const b = el('button', id === filtre ? 'actif' : '', nom);
       b.onclick = function () { filtrer(id); };
       b.dataset.cat = id;
       cats.appendChild(b);
@@ -607,132 +364,98 @@
     };
   });
 
-  // ---------------------------------------------------------------- strip <-> list: a film is the same object in both views
-  // To the list: every clip of the edit lies down. Its frames close into a line at the foot of the clip, the line
-  // travels to the film's row and stretches into the rule of that row; its name travels with it and grows into the
-  // title of the row. The window closes into a line the same way. Films nearest the playhead leave first.
-  // Back to the strip is the same film played backwards: rules shorten into clips and open into frames, titles
-  // shrink back into names, the window opens.
+  // ---------------------------------------------------------------- strip <-> list: everything passes through the ruler
+  // To the list: the pictures fold down into the ruler line; the line then splits into as many lines as there are
+  // films, which travel to their places and become the rules of the list; the titles come in on them.
+  // Back to the strip: the titles leave, the rules gather into one line again, and the pictures stand up out of it.
   const passage = document.body.appendChild(el('div'));
   passage.id = 'passage';
   let enPassage = false;
+  const COURBE_P = 'cubic-bezier(.7,0,.2,1)';
+  function lignesDeListe() {
+    const rangs = $$('.rang', liste), haut = liste.offsetTop - liste.scrollTop, bas = liste.offsetTop + liste.clientHeight;
+    const ys = rangs.map(r => haut + r.offsetTop);
+    if (rangs.length) ys.push(haut + rangs[rangs.length - 1].offsetTop + rangs[rangs.length - 1].offsetHeight);
+    return ys.filter(y => y >= liste.offsetTop - 1 && y <= bas + 1);
+  }
+  // One continuous movement: every part starts before the one before it has finished, so nothing waits and
+  // nothing cuts. Both views are on screen for the whole passage; the view only changes name at the very end.
   function passer(vers) {
     if (enPassage) return;
     if (vertical || leger) return voir(vers);
     enPassage = true;
-    const versListe = vers === 'liste';
+    quitter(survol);
+    const versListe = vers === 'liste', mi = innerWidth / 2, yRegle = regle.offsetTop;
     const DOUX = 'cubic-bezier(.65,0,.35,1)', SORTIE = 'cubic-bezier(.22,1,.36,1)';
-    const ENCRE = 'rgb(12,12,12)', GRIS = 'rgb(155,155,155)';
     const anims = [];
     const anime = function (e, images, options) {
       const a = e.animate(images, Object.assign({ fill: 'both' }, options));
       anims.push(a);
       return a;
     };
-    const boiteP = r => ({ left: r.x + 'px', top: r.y + 'px', width: r.w + 'px', height: r.h + 'px' });
+    const tenir = (e, T) => anime(e, [{ opacity: 1, transform: 'none' }, { opacity: 1, transform: 'none' }], { duration: T });
     document.body.classList.add('net');
-    // the edit holds still while it is being laid down
-    cible = pos;
-    navette = 0;
 
-    const mi = innerWidth / 2, hautB = bandeEl.offsetTop, rangs = $$('.rang', liste);
-    // going to the list, the row of the film under the playhead is brought into view
-    const nCourant = Math.max(0, sous ? visibles.indexOf(sous.f) : 0);
-    if (versListe && rangs[nCourant]) liste.scrollTop = clamp(rangs[nCourant].offsetTop - liste.clientHeight / 2, 0, liste.scrollHeight);
-    const haut = liste.offsetTop - liste.scrollTop, gauche = liste.offsetLeft, large = liste.clientWidth;
-    const bas = liste.offsetTop + liste.clientHeight;
-    // the copy of a film's clip that is nearest the playhead
-    const copie = function (f) {
-      let mieux = null, dm = 1e12;
-      for (const it of items) {
-        if (it.f !== f) continue;
-        const p = ((it.x - pos + mi + MARGE) % span + span) % span - MARGE, d = Math.abs(p + it.w / 2 - mi);
-        if (d < dm) { dm = d; mieux = { it, p }; }
-      }
-      return mieux;
-    };
-    // rows fully in view travel; the row nearest the current film leaves first
-    const vues = [], hors = [];
-    rangs.forEach(function (r, n) {
-      const y = haut + r.offsetTop;
-      (y >= liste.offsetTop - 1 && y + r.offsetHeight <= bas + 1 ? vues : hors).push({ r, n, y, h: r.offsetHeight });
-    });
-    const centre = vues.length ? vues.reduce((m, o) => Math.abs(o.n - nCourant) < Math.abs(m.n - nCourant) ? o : m).n : 0;
-    let loin = 0;
-    for (const o of vues) loin = Math.max(loin, Math.abs(o.n - centre));
-    const PAS_T = 22, VOL = 950;
-    const DUREE_P = (versListe ? 140 : 0) + loin * PAS_T + VOL + 160;
+    // the rules of the list, and how far each one is from the ruler
+    const rangs = $$('.rang', liste), ys = lignesDeListe();
+    const ordre = ys.map((y, k) => k).sort((p, q) => Math.abs(ys[p] - yRegle) - Math.abs(ys[q] - yRegle));
+    const rang = [];
+    ordre.forEach((k, n) => { rang[k] = n; });
+    const vus = items.filter(it => !it.loin);
+    const ecart = it => Math.min(1, Math.abs(it.el.getBoundingClientRect().left + W / 2 - mi) / mi);
+    const PLEIN = 'inset(0% 0% 0% 0%)', PLIE = 'inset(100% 0% 0% 0%)';
 
-    for (const o of vues) {
-      const f = visibles[o.n], d = FILMS[f], c = copie(f);
-      if (!c) continue;
-      const rang = Math.abs(o.n - centre), actif = sous && sous.f === f;
-      const titre = $('.titre', o.r);
-      const cx = clamp(c.p, -c.it.w - 80, innerWidth + 80), cy = hautB + c.it.el.offsetTop, hc = hp - 30;
-      const S = { x: cx, y: cy + 22, w: c.it.w - 3, h: hc }, F = { x: cx, y: cy + 22 + hc - 1, w: c.it.w - 3, h: 1 };
-      const R = { x: gauche, y: o.y, w: large, h: 1 };
-      // the name of the clip <-> the title of the row
-      const nom = passage.appendChild(el('div', 'rang vol'));
-      nom.appendChild(titre.cloneNode(true));
-      const petit = { transform: `translate(${cx.toFixed(1)}px,${cy}px) scale(.56)`, color: actif ? ENCRE : GRIS };
-      const grand = { transform: `translate(${gauche + titre.offsetLeft}px,${haut + titre.offsetTop}px) scale(1)`, color: ENCRE };
-      // the frames of the clip <-> the rule of the row
-      const trait = passage.appendChild(el('i', 'trait-v' + (actif && !d.nb ? '' : ' gris')));
-      const im = trait.appendChild(el('b'));
-      im.style.backgroundImage = `url("affiches/${d.slug}-pellicule.jpg")`;
-      im.style.height = hc + 'px';
-      const o0 = actif ? 1 : .38;
-      const CLAIR = 'rgba(12,12,12,0)', FORT = 'rgba(12,12,12,.6)', FIN = 'rgba(12,12,12,.16)';
-      const autres = [...o.r.children].filter(e => e !== titre);
-      anime(titre, [{ opacity: 0 }, { opacity: 0 }], { duration: DUREE_P });
-      if (versListe) {
-        const t0 = 140 + rang * PAS_T;
-        anime(nom, [petit, grand], { duration: VOL, delay: t0, easing: DOUX });
-        anime(trait, [
-          Object.assign(boiteP(S), { backgroundColor: CLAIR, easing: DOUX }),
-          Object.assign(boiteP(F), { backgroundColor: FORT, offset: .36, easing: DOUX }),
-          Object.assign(boiteP(R), { backgroundColor: FIN }),
-        ], { duration: VOL + 60, delay: t0 - 140 });
-        anime(im, [{ opacity: o0 }, { opacity: 0, offset: .36 }, { opacity: 0 }], { duration: VOL + 60, delay: t0 - 140 });
-        for (const e of autres) anime(e, [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 520, delay: t0 + VOL - 420, easing: SORTIE });
-      } else {
-        const t0 = rang * PAS_T;
-        anime(nom, [grand, petit], { duration: VOL, delay: t0, easing: DOUX });
-        anime(trait, [
-          Object.assign(boiteP(R), { backgroundColor: FIN, easing: DOUX }),
-          Object.assign(boiteP(F), { backgroundColor: FORT, offset: .64, easing: SORTIE }),
-          Object.assign(boiteP(S), { backgroundColor: CLAIR }),
-        ], { duration: VOL + 60, delay: t0 });
-        anime(im, [{ opacity: 0 }, { opacity: 0, offset: .64 }, { opacity: o0 }], { duration: VOL + 60, delay: t0 });
-        for (const e of autres) anime(e, [{ opacity: 1 }, { opacity: 0 }], { duration: 240, delay: t0 * .5 });
-      }
-    }
-    // rows cut by the edge of the list do not travel: they only fade
-    for (const o of hors) anime(o.r, versListe ? [{ opacity: 0 }, { opacity: 0, offset: .8 }, { opacity: 1 }] : [{ opacity: 1 }, { opacity: 0, offset: .2 }, { opacity: 0 }], { duration: DUREE_P });
-    // the last rule of the list has no film of its own
-    const dernier = vues.find(o => o.n === rangs.length - 1);
-    if (dernier) {
-      const l = passage.appendChild(el('i', 'trait-v'));
-      Object.assign(l.style, boiteP({ x: gauche, y: dernier.y + dernier.h, w: large, h: 1 }));
-      anime(l, versListe ? [{ opacity: 0 }, { opacity: 0, offset: .7 }, { opacity: 1 }] : [{ opacity: 1 }, { opacity: 0, offset: .25 }, { opacity: 0 }], { duration: DUREE_P });
-    }
-
-    // the real clips are replaced by the travelling ones for the whole passage
-    for (const it of items) if (!it.loin) anime(it.el, [{ opacity: 0 }, { opacity: 0 }], { duration: DUREE_P });
-    const noms = $$('.nompiste', piste), meubles = [$('.axe'), lu, regle, $('#outils'), $('#poignee')];
-    const FERME = 'translateX(-50%) scaleY(0)', OUVERT = 'translateX(-50%) scaleY(1)';
     if (versListe) {
-      anime(liste, [{ opacity: 1 }, { opacity: 1 }], { duration: DUREE_P });
-      for (const e of [...noms, ...meubles]) anime(e, [{ opacity: 1 }, { opacity: 0 }], { duration: 260 });
-      // the window closes into a line, as the clips do
-      anime(fenetre, [{ transform: OUVERT }, { transform: FERME }], { duration: 560, easing: DOUX });
+      const T = 300 + ys.length * 12 + 820 + 520;
+      tenir(liste, T);
+      // the pictures sink into the ruler, the middle ones first; each picture slides a little inside its frame as it goes
+      for (const it of vus) {
+        const d = ecart(it) * 190;
+        anime(it.cadre, [{ clipPath: PLEIN }, { clipPath: PLIE }], { duration: 640, delay: d, easing: DOUX });
+        anime(it.im, [{ transform: 'none' }, { transform: 'translateY(9%) scale(1.06)' }], { duration: 640, delay: d, easing: DOUX });
+      }
+      for (const e of [$('.axe'), lu]) anime(e, [{ opacity: 1 }, { opacity: 0 }], { duration: 260 });
+      anime(titres, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(26px)' }], { duration: 460, easing: DOUX });
+      anime(regle, [{ opacity: 1 }, { opacity: 0 }], { duration: 420, delay: 300 });
+      // the ruler line opens into the rules of the list, the nearest ones leaving first, darker on the way and
+      // settling to the exact grey of a list rule
+      ys.forEach(function (y, k) {
+        const l = passage.appendChild(el('i', 'trait-p'));
+        anime(l, [{ transform: `translateY(${yRegle}px)`, opacity: 0 }, { transform: `translateY(${yRegle}px)`, opacity: .5, offset: .12 }, { transform: `translateY(${y}px)`, opacity: .16 }],
+          { duration: 820, delay: 240 + rang[k] * 12, easing: DOUX });
+      });
+      // each title arrives as its own rule is settling
+      rangs.forEach(function (r, k) {
+        const d = 240 + (rang[k] === undefined ? ys.length : rang[k]) * 12 + 470;
+        anime(r, [{ opacity: 0, transform: 'translateY(20px)' }, { opacity: 1, transform: 'none' }], { duration: 760, delay: d, easing: SORTIE });
+      });
+      setTimeout(() => finir('liste', anims), T);
     } else {
-      anime(bandeEl, [{ opacity: 1, transform: 'none' }, { opacity: 1, transform: 'none' }], { duration: DUREE_P });
-      for (const e of noms) anime(e, [{ opacity: 0 }, { opacity: 1 }], { duration: 420, delay: DUREE_P - 520 });
-      for (const e of meubles) anime(e, [{ opacity: 0, transform: 'none' }, { opacity: 1, transform: 'none' }], { duration: 420, delay: DUREE_P - 520 });
-      anime(fenetre, [{ opacity: 1, transform: FERME }, { opacity: 1, transform: OUVERT }], { duration: 700, delay: Math.max(0, DUREE_P - 860), easing: SORTIE });
+      const T = 140 + ys.length * 11 + 820 + 760;
+      // the titles leave upward, the last row first
+      rangs.forEach(function (r, k) {
+        anime(r, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-14px)' }], { duration: 420, delay: (rangs.length - 1 - k) * 9, easing: DOUX });
+      });
+      // the rules gather into the ruler, the farthest ones leaving first so they all arrive together
+      const loin = ys.length - 1;
+      ys.forEach(function (y, k) {
+        const l = passage.appendChild(el('i', 'trait-p'));
+        anime(l, [{ transform: `translateY(${y}px)`, opacity: .16 }, { transform: `translateY(${yRegle}px)`, opacity: .5, offset: .88 }, { transform: `translateY(${yRegle}px)`, opacity: 0 }],
+          { duration: 820, delay: 140 + (loin - rang[k]) * 11, easing: DOUX });
+      });
+      const arrive = 140 + loin * 11 + 560;
+      tenir(bandeEl, T);
+      anime(regle, [{ opacity: 0, transform: 'none' }, { opacity: 1, transform: 'none' }], { duration: 420, delay: arrive - 120 });
+      // the pictures rise out of the ruler, the middle ones first
+      for (const it of vus) {
+        const d = arrive + ecart(it) * 190;
+        anime(it.cadre, [{ clipPath: PLIE }, { clipPath: PLEIN }], { duration: 760, delay: d, easing: SORTIE });
+        anime(it.im, [{ transform: 'translateY(9%) scale(1.06)' }, { transform: 'none' }], { duration: 760, delay: d, easing: SORTIE });
+      }
+      for (const e of [$('.axe'), lu]) anime(e, [{ opacity: 0, transform: 'none' }, { opacity: 1, transform: 'none' }], { duration: 400, delay: arrive + 260 });
+      anime(titres, [{ opacity: 0, transform: 'translateY(26px)' }, { opacity: 1, transform: 'none' }], { duration: 700, delay: arrive + 160, easing: SORTIE });
+      setTimeout(() => finir('bande', anims), T);
     }
-    setTimeout(() => finir(vers, anims), DUREE_P);
   }
   function finir(vers, anims) {
     voir(vers);
@@ -804,12 +527,12 @@
     im.style.setProperty('--r', clamp(dx * .12, -14, 14).toFixed(2) + 'deg');
     im.addEventListener('animationend', () => im.remove());
     trainee.appendChild(im);
-    if (trainee.children.length > 6) trainee.firstChild.remove();
+    if (trainee.children.length > 18) trainee.firstChild.remove();
   }
   addEventListener('pointermove', function (e) {
     if (vue() !== 'apropos' || ouvert) return;
     const dx = e.clientX - pose.x, dy = e.clientY - pose.y;
-    if (Math.hypot(dx, dy) < (vertical ? 90 : 150)) return;
+    if (Math.hypot(dx, dy) < (vertical ? 70 : 110)) return;
     poser(e.clientX, e.clientY, Math.abs(dx) > 400 ? 0 : dx);
     pose.x = e.clientX; pose.y = e.clientY;
   });
@@ -818,7 +541,7 @@
     poser(e.clientX, e.clientY, 0);
     pose.x = e.clientX; pose.y = e.clientY;
   });
-  $('#geste').textContent = tactile ? T('Touchez, glissez', 'Touch, drag') : T('Bougez le curseur', 'Move the cursor');
+  $('#geste').textContent = tactile ? 'Touchez, glissez' : 'Bougez le curseur';
 
   // ---------------------------------------------------------------- the film, full frame
   const film = $('#film'), fv = $('#fv');
@@ -887,7 +610,7 @@
     vt = vd = 0; vpause = false; vmuet = true;
     qualites = []; qualite = 'auto';
     $('#qualite').classList.remove('dispo');
-    $('#sonTxt').textContent = T('Son coupé', 'Muted');
+    $('#sonTxt').textContent = 'Son coupé';
     $('#son').classList.remove('actif');
   }
 
@@ -925,7 +648,7 @@
     };
     const titre = el('div', 'gd');
     titre.append(el('h2', '', d.g), el('h3', '', (d.lien ? d.lien + ' ' : '') + d.i));
-    ligne([`${T('N°', 'No.')} ${pad(n + 1)} / ${pad(visibles.length)}`, etiquette(d)].filter(Boolean).join(' · '), titre, 'gtitre');
+    ligne([`N° ${pad(n + 1)} / ${pad(visibles.length)}`, etiquette(d)].filter(Boolean).join(' · '), titre, 'gtitre');
     if (d.texte.length) {
       const t = el('div', 'gd gtexte');
       for (const p of d.texte) t.appendChild(el('p', '', p));
@@ -937,7 +660,7 @@
       ligne(role, dd);
     }
     if (d.vimeo) {
-      const v = carres('보기', T('Voir sur Vimeo ↗', 'Watch on Vimeo ↗'), 'a'), dd = el('div', 'gd');
+      const v = carres('보기', 'Voir sur Vimeo ↗', 'a'), dd = el('div', 'gd');
       v.href = `https://vimeo.com/${d.vimeo}`;
       v.target = '_blank';
       v.rel = 'noopener';
@@ -995,19 +718,13 @@
   function fermer() {
     if (!ouvert) return;
     info(false);
-    atterrir();
     fa.classList.remove('on');
     film.classList.remove('pret', 'repos', 'sombre');
     clearTimeout(repos);
     demonter();
     // go back to where that film is now, if it is on screen
     let rect = origine, place = null;
-    if (vue() === 'bande' && !vertical) {
-      placer(courant);
-      temps(0.016, performance.now());
-      rect = fenetre.getBoundingClientRect();
-      place = fenetre;
-    } else if (vue() === 'bande') {
+    if (vue() === 'bande') {
       const it = items.find(i => i.f === courant && i.vis);
       if (it) { rect = it.el.getBoundingClientRect(); place = it.el; }
     }
@@ -1028,51 +745,45 @@
       luF = -1;
     };
   }
-  // Between two films, a swipe: the film you were watching slides out to one side as the next one slides in from
-  // the other (from the right for the next film, from the left for the previous one), both as their sharp stills.
-  const dessous = film.insertBefore(el('img'), cadreV), arrive = film.insertBefore(el('img'), cadreV);
-  dessous.className = arrive.className = 'glisse';
-  dessous.alt = arrive.alt = '';
-  let enVol = false, vol = [];
-  function atterrir() {
-    vol.forEach(a => a.cancel());
-    vol = [];
-    dessous.classList.remove('on');
-    arrive.classList.remove('on');
-    enVol = false;
-  }
   function voisin(sens) {
-    if (enVol) return;
-    const n = Math.max(0, visibles.indexOf(courant)), suivant = visibles[(n + sens + visibles.length) % visibles.length];
-    if (leger) return charger(suivant);
-    enVol = true;
-    dessous.src = nette(courant);
-    dessous.classList.add('on');
-    fa.style.transition = 'none';
-    fa.classList.remove('on');
-    charger(suivant, true);
-    const im = new Image();
-    im.src = nette(suivant);
-    const partir = function () {
-      if (!enVol || courant !== suivant) return;
-      arrive.src = im.src;
-      arrive.classList.add('on');
-      const o = { duration: 950, easing: COURBE, fill: 'both' };
-      vol = [
-        dessous.animate([{ transform: 'none' }, { transform: `translateX(${-sens * 100}%)` }], o),
-        arrive.animate([{ transform: `translateX(${sens * 100}%)` }, { transform: 'none' }], o),
-      ];
-      vol[1].onfinish = function () {
-        // the sharp still stays in place under the film, which fades in over it once it plays
-        fa.src = im.src;
-        fa.classList.add('on');
-        void fa.offsetWidth;
-        fa.style.transition = '';
-        atterrir();
-        if (ouvert) monter(FILMS[suivant].vimeo);
-      };
-    };
-    im.decode ? im.decode().then(partir, partir) : (im.onload = im.onerror = partir);
+    const n = Math.max(0, visibles.indexOf(courant));
+    eclater(courant, sens);
+    charger(visibles[(n + sens + visibles.length) % visibles.length]);
+  }
+  // Between two films: the picture on screen breaks into manuscript tiles, and a wave blows them off the screen
+  // in the direction of travel (left for the next film, right for the previous one). The new film is already
+  // underneath, settling into place as the tiles clear.
+  const eclats = film.insertBefore(el('div'), $('.ui', film));
+  eclats.id = 'eclats';
+  function eclater(f, sens) {
+    if (leger) return;
+    const vw = innerWidth, vh = innerHeight, cols = vw < 700 ? 6 : 12, rows = Math.max(4, Math.round(vh / (vw / cols)));
+    const cw = vw / cols, ch = vh / rows, src = nette(f), im = new Image();
+    im.src = src;
+    // each tile carries its own piece of the outgoing picture, framed the way the film was framed
+    let fond = '', ox = 0, oy = 0;
+    if (im.complete && im.naturalWidth) {
+      const k = Math.min(vw / im.naturalWidth, vh / im.naturalHeight), w = im.naturalWidth * k, h = im.naturalHeight * k;
+      fond = `background-image:url("${src}");background-size:${w}px ${h}px;`;
+      ox = (vw - w) / 2; oy = (vh - h) / 2;
+    }
+    eclats.innerHTML = '';
+    let fin = 0;
+    for (let j = 0; j < rows; j++) {
+      for (let i = 0; i < cols; i++) {
+        const t = eclats.appendChild(el('i'));
+        t.style.cssText = `left:${i * cw}px;top:${j * ch}px;width:${cw + 1}px;height:${ch + 1}px;${fond}background-position:${ox - i * cw}px ${oy - j * ch}px;`;
+        // the wave runs across the screen from the side the tiles fly toward
+        const d = (sens > 0 ? i : cols - 1 - i) * 34 + j * 14 + Math.random() * 70;
+        const dx = -sens * (160 + Math.random() * 300), dy = (Math.random() - .5) * 220, r = (Math.random() - .5) * 60;
+        t.animate([{ transform: 'none', opacity: 1 }, { transform: `translate(${dx}px,${dy}px) rotate(${r}deg) scale(.45)`, opacity: 0 }],
+          { duration: 680, delay: d, easing: 'cubic-bezier(.6,0,.3,1)', fill: 'both' });
+        fin = Math.max(fin, d + 680);
+      }
+    }
+    // underneath, the new picture eases back from slightly too close
+    for (const e of [fv, fa]) e.animate([{ transform: 'scale(1.14)' }, { transform: 'none' }], { duration: fin, easing: 'cubic-bezier(.2,.7,.2,1)' });
+    setTimeout(function () { eclats.innerHTML = ''; }, fin + 60);
   }
   function basculer() {
     if (joueur) vpause ? joueur.play().catch(function () {}) : joueur.pause().catch(function () {});
@@ -1082,7 +793,7 @@
     vmuet = !vmuet;
     joueur.setMuted(vmuet).catch(function () {});
     if (!vmuet) joueur.setVolume(1).catch(function () {});
-    $('#sonTxt').textContent = vmuet ? T('Son coupé', 'Muted') : T('Son', 'Sound');
+    $('#sonTxt').textContent = vmuet ? 'Son coupé' : 'Son';
     $('#son').classList.toggle('actif', !vmuet);
   }
   function aller(t) {
@@ -1201,7 +912,7 @@
     if (texte !== tTexte) $('#fTc').textContent = tTexte = texte;
     if (vpause !== tPause) {
       tPause = vpause;
-      $('#pauseTxt').textContent = vpause ? T('Lecture', 'Play') : 'Pause';
+      $('#pauseTxt').textContent = vpause ? 'Lecture' : 'Pause';
       $('#pause').classList.toggle('actif', vpause);
       $$('#pause .k b').forEach((b, k) => { b.textContent = (vpause ? '재생' : '멈춤')[k]; });
     }
@@ -1219,12 +930,8 @@
       return;
     }
     if (e.key === 'Escape' && vue() !== 'bande') voir('bande');
-    else if (!vertical && vue() === 'bande' && 'jklJKL'.includes(e.key) && e.key.length === 1) navetter({ j: -1, k: 0, l: 1 }[e.key.toLowerCase()]);
-    else if (!vertical && vue() === 'bande' && (e.key === '+' || e.key === '=')) viserZoom(zc * 1.4);
-    else if (!vertical && vue() === 'bande' && (e.key === '-' || e.key === '_')) viserZoom(zc / 1.4);
-    else if (!vertical && vue() === 'bande' && e.key === '0') viserZoom(1);
-    else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') vertical ? pousser(PAS) : sauter(1);
-    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') vertical ? pousser(-PAS) : sauter(-1);
+    else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') pousser(PAS);
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') pousser(-PAS);
   });
 
   // ---------------------------------------------------------------- about: the greeting turns through his four languages
@@ -1251,8 +958,8 @@
     const ecrire = function () { location.href = 'mailto:' + adresse; };
     if (!navigator.clipboard) return ecrire();
     navigator.clipboard.writeText(adresse).then(function () {
-      f.textContent = T('Copié', 'Copied');
-      setTimeout(function () { f.textContent = T('Copier', 'Copy'); }, 1600);
+      f.textContent = 'Copié';
+      setTimeout(function () { f.textContent = 'Copier'; }, 1600);
     }, ecrire);
   };
 
@@ -1261,12 +968,7 @@
   const cz = { x: 0, y: 0, w: 26, h: 26, tx: 0, ty: 0, tw: 26, th: 26, vu: false };
   if (!tactile) addEventListener('pointermove', function (e) {
     const b = e.target.closest ? e.target.closest('.btn') : null;
-    const tu = e.target.closest ? e.target.closest('#tTemps .tu') : null;
-    if (tu) {
-      // over the time bar it sticks to the tile under it and takes its size
-      const r = tu.getBoundingClientRect();
-      cz.tx = r.left; cz.ty = r.top; cz.tw = r.width; cz.th = r.height;
-    } else if (b) {
+    if (b) {
       const r = $('.k', b).getBoundingClientRect();
       cz.tx = r.left - 4; cz.ty = r.top - 4; cz.tw = r.width + 8; cz.th = r.height + 8;
     } else {
@@ -1292,17 +994,14 @@
   const fS = fmt('Asia/Seoul'), fP = fmt('Europe/Paris');
   function horloge() {
     const d = new Date();
-    $('#heures').textContent = $('#heures2').textContent = `Paris ${fP.format(d)} · ${T('Séoul', 'Seoul')} ${fS.format(d)}`;
+    $('#heures').textContent = $('#heures2').textContent = `Paris ${fP.format(d)} · Séoul ${fS.format(d)}`;
   }
 
   // ---------------------------------------------------------------- start
   let largeurVue = 0;
   function taille() {
     vertical = innerWidth < 700;
-    document.body.classList.toggle('temps', !vertical);
     tailleRegle();
-    // a shorter window leaves less room for tall tracks
-    if (!vertical) regleHauteur(hp);
     if (innerWidth !== largeurVue) {
       largeurVue = innerWidth;
       construireBande();
@@ -1323,7 +1022,7 @@
       lent = brut > .034 ? lent + brut : Math.max(0, lent - brut * .5);
       if (lent > 1.6) alleger();
     }
-    vertical ? bande(dt, ms) : temps(dt, ms);
+    bande(dt, ms);
     dessinerRegle();
     flotter(dt);
     lecteur(dt);

@@ -113,32 +113,18 @@ button {
 .filtres {
   left: 36%;
   display: flex;
+  gap: 8px;
 }
-/* the filters: a row of words, each carrying how many films it holds; the one in use is underlined */
-#compte {
-  display: none;
+.filtres sup {
+  font: 400 8px/1 var(--mono);
+  margin-top: 1px;
 }
 #cats {
   display: flex;
-  gap: 20px;
-  font: 500 15px/1 var(--sans);
-  letter-spacing: -.01em;
-}
-#cats button {
-  display: flex;
-  align-items: flex-start;
-  gap: 3px;
-  padding-bottom: 5px;
-  background: linear-gradient(currentColor, currentColor) no-repeat left bottom / 0 1px;
-  transition: color .25s, background-size .4s var(--e);
-}
-#cats button.actif {
-  background-size: 100% 1px;
-}
-#cats sup {
-  font-size: 8px;
+  flex-direction: column;
+  font-size: 12px;
   line-height: 1;
-  letter-spacing: .04em;
+  text-transform: uppercase;
 }
 /* a command: manuscript squares holding a Korean word, captioned in French */
 .btn {
@@ -331,10 +317,7 @@ button {
 body:not([data-vue="bande"]) #bande,
 body:not([data-vue="bande"]) #regle,
 body:not([data-vue="bande"]) .axe,
-body:not([data-vue="bande"]) #lu,
-body:not([data-vue="bande"]) #fenetre,
-body:not([data-vue="bande"]) .outils,
-body:not([data-vue="bande"]) #poignee {
+body:not([data-vue="bande"]) #lu {
   opacity: 0;
   transform: translateY(26px);
   pointer-events: none;
@@ -856,11 +839,11 @@ body[data-vue="contact"] .adresses {
 }
 .pose {
   position: absolute;
-  width: clamp(90px, 9vw, 150px);
+  width: clamp(150px, 17vw, 260px);
   aspect-ratio: 3 / 2;
   object-fit: cover;
   transform: translate(-50%, -50%);
-  animation: pose .9s var(--e) forwards;
+  animation: pose 1.7s var(--e) forwards;
 }
 .pose.nb {
   filter: grayscale(1);
@@ -868,18 +851,19 @@ body[data-vue="contact"] .adresses {
 @keyframes pose {
   0% {
     opacity: 0;
-    transform: translate(-50%, -50%) scale(.92);
+    transform: translate(-50%, -50%) skewX(var(--r)) scale(.6);
   }
-  18% {
-    opacity: .9;
+  14% {
+    opacity: 1;
+    transform: translate(-50%, -50%) skewX(0deg) scale(1);
+  }
+  62% {
+    opacity: 1;
     transform: translate(-50%, -50%) scale(1);
-  }
-  45% {
-    opacity: .9;
   }
   100% {
     opacity: 0;
-    transform: translate(-50%, -50%) scale(.97);
+    transform: translate(-50%, calc(-50% + 46px)) scale(.86);
   }
 }
 
@@ -888,14 +872,8 @@ body[data-vue="contact"] .adresses {
   .filtres {
     left: 300px;
   }
-  /* no room beside the squares: the word goes under them */
-  .menu .btn {
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-  }
   .menu .mono {
-    font-size: 8px;
+    display: none;
   }
   .menu {
     gap: 10px;
@@ -925,13 +903,17 @@ body[data-vue="contact"] .adresses {
     top: 12px !important;
     gap: 8px;
   }
+  .menu .mono {
+    display: none;
+  }
   .filtres {
     left: 16px;
-    top: 64px;
+    top: 58px;
   }
   #cats {
-    gap: 14px;
-    font-size: 13px;
+    flex-direction: row;
+    gap: 12px;
+    font-size: 11px;
   }
   .heures {
     display: none;
@@ -939,7 +921,7 @@ body[data-vue="contact"] .adresses {
   .vues {
     left: auto;
     right: 16px;
-    top: 64px;
+    top: 58px;
     gap: 14px;
   }
   #bande {
@@ -1534,16 +1516,9 @@ body.leger .pose {
 #tTemps .tu.hov::after {
   content: "";
   position: absolute;
-  inset: 0;
+  inset: 3px;
   border: 1px solid #d6301d;
 }
-/* with a mouse, the cursor itself sticks to the tile and takes its size */
-@media (hover: hover) {
-  #tTemps .tu.hov::after {
-    display: none;
-  }
-}
-
 .tcmd {
   display: flex;
   gap: 22px;
@@ -1823,6 +1798,15 @@ body.leger .pose {
   z-index: 5;
   pointer-events: none;
 }
+.trait-p {
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  top: 0;
+  height: 1px;
+  background: #0c0c0c;
+  will-change: transform, opacity;
+}
 /* during the passage the two views do not cross-fade by themselves: the script leads */
 body.net #bande,
 body.net #regle,
@@ -1840,396 +1824,17 @@ body.net .rang {
   border-color: transparent !important;
 }
 
-/* ---------- between two films: a swipe between the two sharp stills */
-.glisse {
+/* ---------- between two films: the tiles the outgoing picture breaks into */
+#eclats {
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  background: #000;
-  opacity: 0;
-  pointer-events: none;
-  will-change: transform;
-}
-.glisse.on {
-  opacity: 1;
-}
-
-
-/* ---------- on a wide screen the strip is an edit timeline: tracks of clips under a still playhead,
-   and above the playhead a window that takes the shape of the film it crosses */
-#fenetre {
-  display: none;
-}
-body.temps {
-  --hp: 66px;
-  --np: 3;
-  /* the edit is anchored to the foot of the screen; the window takes all the room left above it,
-     so smaller tracks mean a bigger picture */
-  --haut: 118px;
-  --pied: calc(100vh - 132px - var(--np) * var(--hp));
-  --fh: calc(var(--pied) - 44px - var(--haut));
-}
-/* the big title at the foot belongs to the phone strip only */
-body.temps #titres,
-body.temps #luTc {
-  display: none;
-}
-body.temps #bande {
-  top: var(--pied);
-  height: calc(var(--np) * var(--hp));
-}
-body.temps .axe {
-  top: calc(var(--pied) - 16px);
-  height: calc(var(--np) * var(--hp) + 58px);
-}
-body.temps #regle {
-  top: calc(var(--pied) + var(--np) * var(--hp) + 4px);
-}
-body.temps #lu {
-  top: calc(var(--pied) + var(--np) * var(--hp) + 52px);
-}
-.tetel {
-  display: none;
-}
-body.temps .tetel {
-  display: block;
-  position: absolute;
-  left: 50%;
-  bottom: 100%;
-  transform: translateX(-50%);
-  padding: 4px 7px 3px;
-  background: var(--encre);
-  color: var(--papier);
-  white-space: nowrap;
-}
-body.temps #fenetre {
-  /* as tall as the room allows, unless the film is so wide that it would reach the sides */
-  --wh: min(var(--fh), calc((100vw - 520px) / var(--ratio, 1.78)));
-  display: block;
-  position: fixed;
-  left: 50%;
-  top: calc(var(--pied) - 44px - var(--wh));
-  height: var(--wh);
-  width: calc(var(--wh) * var(--ratio, 1.78));
-  transform: translateX(-50%);
-  background: #ececec;
-  overflow: hidden;
   z-index: 2;
-  cursor: pointer;
-  transition: width .7s var(--e), height .7s var(--e), top .7s var(--e), opacity .5s;
-}
-body.tire #fenetre {
-  transition: none;
-}
-#fenetre img,
-#fenetre video {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-#fenetre video {
-  opacity: 0;
-  transition: opacity .35s;
-}
-#fenetre video.vivant {
-  opacity: 1;
-}
-#fenetre.nb img,
-#fenetre.nb video {
-  filter: grayscale(1);
-}
-.clip {
-  position: absolute;
-  left: 0;
-  height: calc(var(--hp) - 8px);
-  will-change: transform;
-}
-/* a clip is its own frames, side by side; its name sits just above it, outside the frames */
-.clip .cadre {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  top: 22px;
   overflow: hidden;
-  background: #ececec repeat-x left center / auto 100%;
-  outline: 1px solid rgba(12, 12, 12, .16);
-  outline-offset: -1px;
-  opacity: .38;
-  filter: grayscale(1);
-  transition: opacity .4s, filter .4s, outline-color .3s;
-}
-.clip:hover .cadre {
-  opacity: .8;
-}
-.clip.actif .cadre {
-  opacity: 1;
-  filter: none;
-  outline: 2px solid var(--encre);
-  outline-offset: -2px;
-}
-.clip.nb .cadre {
-  filter: grayscale(1);
-}
-.etiq {
-  position: absolute;
-  left: 0;
-  top: 0;
-  max-width: 100%;
-  display: flex;
-  align-items: baseline;
-  gap: 7px;
-  overflow: hidden;
-  white-space: nowrap;
-  color: var(--gris);
-  transition: color .35s;
-}
-.clip:hover .etiq,
-.clip.actif .etiq {
-  color: var(--encre);
-}
-.etiq b {
-  font: 700 13px/1 var(--sans);
-  letter-spacing: -.03em;
-}
-.etiq i {
-  font: italic 400 16px/1 var(--serif);
-}
-.etiq .mono {
-  color: var(--gris);
-}
-/* the track headers: one quiet line each, level with the frames; a click keeps only that track */
-.nompiste {
-  position: absolute;
-  left: 0;
-  z-index: 1;
-  height: calc(var(--hp) - 30px);
-  margin-top: 22px;
-  padding: 0 14px 0 20px;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  background: var(--papier);
-  color: var(--encre);
-  cursor: pointer;
-}
-.nompiste {
-  transition: color .25s;
-}
-.nompiste.eteint {
-  color: var(--gris);
-}
-.nompiste:hover {
-  color: var(--encre);
-}
-/* the picked track is underlined, like the picked filter of the list */
-.nompiste.solo {
-  text-decoration: underline;
-  text-underline-offset: 6px;
-  text-decoration-thickness: 1px;
-}
-/* the timeline has its tracks: the filters only stay in the list */
-body.temps[data-vue="bande"] .filtres {
-  opacity: 0;
   pointer-events: none;
 }
-.filtres {
-  transition: opacity .4s;
-}
-
-/* ---------- phone: more air under the header, now that the words sit under the squares */
-@media (max-width: 699px) {
-  .filtres,
-  .vues {
-    top: 72px;
-  }
-  #bande {
-    top: 104px;
-    height: calc(100% - 104px - 124px);
-  }
-  .axe {
-    top: calc(104px + (100% - 228px) / 2);
-  }
-  #regle {
-    top: 104px;
-    height: calc(100% - 228px);
-  }
-  #liste {
-    top: 110px;
-  }
-  /* About and Contact read as one column that scrolls: the big lines come right after the text, no empty gap */
-  body[data-vue="apropos"] #apropos,
-  body[data-vue="contact"] #contact {
-    pointer-events: auto;
-  }
-  .page {
-    overflow-y: auto;
-    scrollbar-width: none;
-    padding: 128px 0 16px;
-  }
-  .page::-webkit-scrollbar {
-    display: none;
-  }
-  .page .colonne,
-  #contact .colonne {
-    position: relative;
-    left: 16px;
-    top: 0;
-    max-height: none;
-    overflow: visible;
-  }
-  .grand {
-    position: relative;
-    left: 16px;
-    bottom: auto;
-    margin-top: 44px;
-  }
-}
-
-/* ---------- the controls of the edit: zoom, track height, and the handle under the tracks */
-.outils,
-#poignee {
-  display: none;
-}
-body.temps .outils {
-  display: flex;
-  position: fixed;
-  left: 20px;
-  top: calc(var(--pied) + var(--np) * var(--hp) + 52px);
-  flex-direction: column;
-  gap: 9px;
-  color: var(--gris);
-  z-index: 3;
-  transition: opacity .5s;
-}
-.outils .ctl {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-}
-.outils .ctl > span {
-  width: 58px;
-}
-.outils button {
-  width: 16px;
-  text-align: center;
-  font: 400 14px/1 var(--mono);
-  color: var(--encre);
-}
-.outils .aide {
-  font-size: 8.5px;
-  letter-spacing: .05em;
-}
-.outils input[type="range"] {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 120px;
-  height: 14px;
-  background: linear-gradient(var(--encre), var(--encre)) no-repeat center / 100% 1px;
-  cursor: pointer;
-}
-.outils input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 9px;
-  height: 14px;
-  background: var(--encre);
-  border: 0;
-}
-.outils input[type="range"]::-moz-range-thumb {
-  width: 9px;
-  height: 14px;
-  background: var(--encre);
-  border: 0;
-  border-radius: 0;
-}
-/* the handle under the track names: nothing to see until the cursor is on it */
-body.temps #poignee {
-  display: block;
-  position: fixed;
-  left: 0;
-  width: 120px;
-  top: calc(var(--pied) + var(--np) * var(--hp) - 12px);
-  height: 12px;
-  z-index: 4;
-  cursor: ns-resize;
-  background: linear-gradient(var(--encre), var(--encre)) no-repeat 20px center / 60px 1px;
-  opacity: 0;
-  transition: opacity .3s;
-}
-body.temps #poignee:hover,
-body.tire #poignee {
-  opacity: 1;
-}
-body.tire {
-  cursor: ns-resize;
-}
-
-/* ---------- strip <-> list: the travelling name and the travelling line of each film */
-.rang.vol {
+#eclats i {
   position: absolute;
-  left: 0;
-  top: 0;
-  display: block;
-  padding: 0;
-  border: 0 !important;
-  transform-origin: 0 0;
-  will-change: transform;
-}
-.trait-v {
-  position: absolute;
-  overflow: hidden;
-  background: rgba(12, 12, 12, .16);
-}
-.trait-v b {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: repeat-x left center / auto 100%;
-}
-.trait-v.gris b {
-  filter: grayscale(1);
-}
-#fenetre {
-  transform-origin: 50% 100%;
-}
-body.net #fenetre,
-body.net .outils,
-body.net #poignee {
-  transition: none !important;
-}
-
-/* ---------- phone, About and Contact: the page always fills the screen. The text starts at the top, the big line
-   ends at the foot, and the room between them is shared out between the lines instead of being left empty */
-@media (max-width: 699px) {
-  .page {
-    display: flex;
-    flex-direction: column;
-  }
-  .page .colonne,
-  #contact .colonne {
-    flex: 1 0 auto;
-    display: flex;
-    flex-direction: column;
-  }
-  #apropos .colonne {
-    justify-content: space-between;
-  }
-  .adresses {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-  }
-  .lien {
-    flex: 1;
-    align-items: center;
-  }
-  .grand {
-    flex: none;
-  }
+  background-color: #000;
+  background-repeat: no-repeat;
+  will-change: transform, opacity;
 }
