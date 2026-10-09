@@ -44,7 +44,8 @@
   const bed = new Audio('riser.m4a'); bed.preload = 'auto'; bed.loop = true; bed.volume = .16;
   const NOMS = ['Sound', 'Sound on'];
   const son = el.querySelector('#introSon');
-  son.addEventListener('click', () => {
+  son.addEventListener('click', (e) => {
+    e.stopPropagation();
     mode = (mode + 1) % 2;
     vs.forEach(v => { v.muted = mode !== 1; v.volume = 1; });
     if (mode === 1) { bed.currentTime = 0; bed.volume = .16; bed.play().catch(() => {}); } else bed.pause();
@@ -105,7 +106,7 @@
     a(fen, [{ opacity: 1, transform: 'translateX(-50%) scaleY(0)' }, { opacity: 1, transform: 'translateX(-50%) scaleY(1)' }], { duration: 700, delay: D - 860, easing: SORTIE });
     setTimeout(() => { el.hidden = true; vs.forEach(x => { x.pause(); x.removeAttribute('src'); x.load(); }); bed.pause(); mine.forEach(x => x.cancel()); }, D + 100);
   };
-  el.querySelector('#introEntrer').addEventListener('click', enter);
+  el.querySelector('#introEntrer').addEventListener('click', (e) => { e.stopPropagation(); enter(); });
   // a tap anywhere enters
   el.addEventListener('click', () => { if (started) enter(); });
   addEventListener('keydown', e => {
