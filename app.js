@@ -271,7 +271,7 @@
   // plays the film itself, from Vimeo, once the playhead rests on it: the film fades in over its preview, the
   // window takes the film's true shape, and the playhead reads the film's real timecode. Moving on cuts it.
   const sonB = $('#sonAccueil');
-  let sonOn = false, vw = null, vwF = -1, vwVoulu = -1, vwT = 0, vwTemps = 0;
+  let sonOn = false, vw = null, vwF = -1, vwVoulu = -1, vwT = 0, vwTemps = 0, vwSeek = 0, vwTaux = 1;
   function couperVimeo() {
     clearTimeout(vwT);
     const fr = $('iframe', fenetre);
@@ -285,9 +285,12 @@
     const d = FILMS[f];
     if (!sonOn || !d.vimeo || !window.Vimeo) return;
     vwF = f;
-    vwTemps = 0;
+    vwTaux = 1;
+    // the film starts where the playhead stands on its clip, so sound and timecode agree from the first frame
+    const depart = d.duree ? Math.max(0, Math.floor(sousFrac * d.duree)) : 0;
+    vwTemps = depart;
     const fr = el('iframe');
-    fr.src = `https://player.vimeo.com/video/${d.vimeo}?autoplay=1&muted=0&loop=1&controls=0&title=0&byline=0&portrait=0&dnt=1&playsinline=1`;
+    fr.src = `https://player.vimeo.com/video/${d.vimeo}?autoplay=1&muted=0&loop=1&controls=0&title=0&byline=0&portrait=0&dnt=1&playsinline=1#t=${depart}s`;
     fr.allow = 'autoplay; fullscreen';
     fenetre.appendChild(fr);
     vw = new window.Vimeo.Player(fr);
@@ -509,7 +512,16 @@
     // the hand moves fast: the playhead scrubs the film; it slows down: the film plays
     const ici = vue() === 'bande' && !ouvert;
     // with the sound on, the film itself plays once the playhead rests on it
-    sonner(sonOn && ici && !enPassage && !glisse.on && !navette && Math.abs(vs) < 40 ? sous.f : -1);
+    const d = FILMS[sous.f];
+    // the film stays while the hand moves and follows the playhead: a little faster when the edit slides, a seek
+    // when it drifts; only a real throw or a drag cuts it
+    sonner(sonOn && ici && !enPassage && !glisse.on && !navette && Math.abs(vs) < 900 ? sous.f : -1);
+    if (vw && vwF === sous.f && d.duree) {
+      const cible = sousFrac * d.duree, tnow = performance.now();
+      if (Math.abs(vwTemps - cible) > 1.5 && tnow - vwSeek > 400) { vwSeek = tnow; vwTemps = cible; vw.setCurrentTime(cible).catch(function () {}); }
+      const taux = Math.abs(vs) < 40 ? 1 : +clamp(1 + Math.abs(vs) / 300, 1, 2).toFixed(2);
+      if (taux !== vwTaux) { vwTaux = taux; vw.setPlaybackRate(taux).catch(function () {}); }
+    }
     const filme = fenetre.classList.contains('son');
     if (!ici || filme) { if (!vif.paused) vif.pause(); }
     else if (vif.duration) {
@@ -519,7 +531,6 @@
         if (!vif.seeking && Math.abs(vif.currentTime - t) > 1 / 24) vif.currentTime = t;
       } else if (vif.paused) vif.play().catch(function () {});
     }
-    const d = FILMS[sous.f];
     const code = filme ? tc(vwTemps) : d.duree ? tc(sousFrac * d.duree) : tc(0);
     const vitesse = navette ? `${navette > 0 ? '▶' : '◀'} ${Math.abs(navette)}×  ` : '';
     if (vitesse + code !== luCode) { $('#luTc').textContent = code; teteL.textContent = luCode = vitesse + code; }
