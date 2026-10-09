@@ -31,7 +31,21 @@
   // ---------------------------------------------------------------- content: his 25 projects, from donnees.js
   const CATS = { pub: 'Pub', fiction: 'Fiction' };
   const FILMS = window.FILMS;
-  const boucle = f => `affiches/${FILMS[f].slug}${EXT}`;
+  const sobre = !!(navigator.connection && navigator.connection.saveData);
+  // the sharp file everywhere (a phone screen is 2x or 3x); the light one only when data saving is asked for
+  const boucle = f => `affiches/${FILMS[f].slug}${sobre ? EXT : '-hd.mp4'}`;
+  // the loops of the films next in the edit are fetched ahead, so the window never waits on the swap
+  const prefetches = new Set();
+  function precharger(f) {
+    const n = visibles.indexOf(f), m = visibles.length;
+    if (m < 2) return;
+    for (const g of [visibles[(n + 1) % m], visibles[(n - 1 + m) % m]]) {
+      const u = boucle(g);
+      if (prefetches.has(u)) continue;
+      prefetches.add(u);
+      fetch(u, { priority: 'low' }).catch(function () { prefetches.delete(u); });
+    }
+  }
   const nette = f => FILMS[f].hd ? `affiches/${FILMS[f].slug}-hd.jpg` : affiche(f);
   const affiche = f => `affiches/${FILMS[f].slug}${FILMS[f].hd ? '-m' : ''}.jpg`;
   const etiquette = d => [CATS[d.cat], d.an].filter(Boolean).join(' · ');
@@ -55,9 +69,19 @@
   let items = [], vertical = false, W = 0, S = 0, L = 0, PAS = 0, span = 0;
   let pos = 0, cible = 0, vs = 0, lean = 0, leanV = 0;
   let survol = null, dernierGeste = -1e4, luF = -1, reveil;
-  const vif = el('video');
-  vif.muted = true; vif.loop = true; vif.playsInline = true; vif.preload = 'auto';
-  vif.addEventListener('playing', () => vif.classList.add('vivant'));
+  const vifs = [el('video'), el('video')];
+  for (const v of vifs) {
+    v.muted = true; v.loop = true; v.playsInline = true; v.preload = 'auto';
+    // only the video asked for last takes the screen; the other one lets go at the same time
+    v.addEventListener('playing', function () {
+      if (v !== vif) return;
+      v.classList.add('vivant');
+      const autre = vifs[1 - vifs.indexOf(v)];
+      autre.classList.remove('vivant');
+      autre.pause();
+    });
+  }
+  let vif = vifs[0];
 
   function construireBande() {
     if (!vertical) return construireTemps();
@@ -103,6 +127,7 @@
     vif.src = boucle(it.f);
     it.cadre.appendChild(vif);
     vif.play().catch(function () {});
+    precharger(it.f);
   }
   function quitter(it) {
     if (!it || survol !== it) return;
@@ -220,6 +245,8 @@
 
     // the foot of the page names the film on the line, and leans a little with the strip
     if (proche) montrerTitre(proche.f, now);
+    // on a phone the film that comes to rest on the line plays in its own picture
+    if (vertical && proche && survol !== proche && Math.abs(vs) < 140) { quitter(survol); survoler(proche); }
     const penche = vertical || leger ? '0' : (-lean * .22).toFixed(2);
     if (penche !== roulePenche) titres.style.transform = `skewX(${roulePenche = penche}deg)`;
     lire(proche);
@@ -432,10 +459,13 @@
     const d = FILMS[f];
     fenetre.classList.toggle('nb', !!d.nb);
     fim.src = affiche(f);
+    // the film on screen stays until the next one really plays: the two cross over, no still in between
+    vif = vifs[1 - vifs.indexOf(vif)];
     vif.classList.remove('vivant');
     vif.src = boucle(f);
     fenetre.appendChild(vif);
     vif.play().catch(function () {});
+    precharger(f);
   }
   // put the playhead on a film, in the middle of its clip
   function placer(f) {
@@ -875,7 +905,7 @@
       if (d.lien) titre.appendChild(el('span', 'x', d.lien));
       titre.appendChild(el('span', 'i', d.i));
       r.append(el('span', 'no mono', pad(n + 1)), titre, el('span', 'role mono', d.role),
-        el('span', 'cat mono', CATS[d.cat] || ''), el('span', 'an mono', d.an || ''));
+        el('span', 'cat mono', CATS[d.cat] || ''), el('span', 'an mono', d.an && !String(d.i).includes(d.an) ? d.an : ''));
       r.addEventListener('pointerenter', function (e) {
         if (tactile) return;
         flot.f = f;
