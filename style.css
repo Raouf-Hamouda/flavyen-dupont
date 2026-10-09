@@ -2521,7 +2521,6 @@ html, body { position: fixed; inset: 0; width: 100%; max-width: 100%; touch-acti
 #intro .intro-logo { margin: 0; }
 #intro .logo { font-size: clamp(30px, 3.4vw, 46px); }
 #intro #introEntrer { position: static; align-self: flex-end; z-index: 1; opacity: 1; animation: none; }
-#intro #introEntrer .k { display: none; }
 #intro #introEntrer .mono { color: rgba(255, 255, 255, .75); font-size: 11px; letter-spacing: .14em; }
 #intro #introEntrer:hover .mono { color: #fff; }
 @media (max-width: 699px) {
@@ -2533,8 +2532,11 @@ html, body { position: fixed; inset: 0; width: 100%; max-width: 100%; touch-acti
 #intro .logo .pt { display: none; }
 
 /* sound: the same small word, left of Enter, toggling the extracts' own sound */
-#intro #introSon { position: absolute; top: auto; right: 86px; bottom: calc(20px + env(safe-area-inset-bottom)); z-index: 1; opacity: 1; animation: none; }
-#intro #introSon .k { display: none; }
+#intro #introSon { position: absolute; top: auto; right: 150px; bottom: calc(20px + env(safe-area-inset-bottom)); z-index: 1; opacity: 1; animation: none; }
 #intro #introSon .mono { color: rgba(255, 255, 255, .75); font-size: 11px; letter-spacing: .14em; }
 #intro #introSon:hover .mono, #intro #introSon.actif .mono { color: #fff; }
-#intro #introSon.actif .mono { text-decoration: underline; text-underline-offset: 4px; }
+
+/* the two intro buttons keep the site's squares: white line, filling on hover and when active */
+#intro .btn .k b { border-color: #fff; color: #fff; background-image: linear-gradient(#fff, #fff); }
+#intro .btn:hover .k b, #intro .btn.actif .k b { color: #000; }
+#intro #introSon .mono, #intro #introEntrer .mono { font-size: 10px; }
