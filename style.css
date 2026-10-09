@@ -1406,9 +1406,17 @@ body[data-vue="contact"] #contact .colonne {
   }
 }
 @media (max-width: 699px) {
-  /* on a phone the three player commands keep only their squares */
-  #film .haut .btn .mono {
-    display: none;
+  /* on a phone the label sits under its squares, so the word stays readable */
+  #film .haut .btn,
+  .tcmd .btn {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+  }
+  #film .haut .btn .mono,
+  .tcmd .btn .mono {
+    font-size: 9px;
+    white-space: nowrap;
   }
 }
 
@@ -1564,9 +1572,6 @@ body.leger .pose {
 @media (max-width: 699px) {
   .tcmd {
     gap: 12px;
-  }
-  .tcmd .btn .mono {
-    display: none;
   }
 }
 
@@ -2301,4 +2306,31 @@ body.net .filtres {
 }
 #fenetre.son iframe {
   opacity: 1;
+}
+
+/* ---------- phone fixes: no film filters or strip/list switch on About and Contact, real tap targets, Contact title inside the margins */
+@media (max-width: 699px) {
+  body[data-vue="apropos"] .filtres,
+  body[data-vue="apropos"] .vues,
+  body[data-vue="contact"] .filtres,
+  body[data-vue="contact"] .vues {
+    opacity: 0;
+    pointer-events: none;
+    transition: none;
+  }
+  .vues button,
+  #cats button,
+  .qui {
+    position: relative;
+  }
+  .vues button::after,
+  #cats button::after,
+  .qui::after {
+    content: "";
+    position: absolute;
+    inset: -14px -8px;
+  }
+  #contact .grand .g {
+    font-size: 14.5vw;
+  }
 }
