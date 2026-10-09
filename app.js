@@ -291,18 +291,7 @@
     fr.allow = 'autoplay; fullscreen';
     fenetre.appendChild(fr);
     vw = new window.Vimeo.Player(fr);
-    // Vimeo starts muted when the browser holds back sound: it is unmuted by hand once ready, and again on
-    // the next tap if the browser still held it
-    const ouvrirSon = function () {
-      if (vwF !== f || !vw) return;
-      vw.setMuted(false).catch(function () {});
-      vw.setVolume(1).catch(function () {});
-      vw.play().catch(function () {});
-    };
-    vw.ready().then(ouvrirSon).catch(function () {});
-    vw.on('play', ouvrirSon);
-    const geste = function () { ouvrirSon(); removeEventListener('pointerdown', geste); removeEventListener('keydown', geste); };
-    addEventListener('pointerdown', geste); addEventListener('keydown', geste);
+    vw.setVolume(1).catch(function () {});
     vw.on('timeupdate', function (e) {
       if (vwF !== f) return;
       vwTemps = e.seconds;
