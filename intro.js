@@ -32,7 +32,12 @@
       setTimeout(() => { a.pause(); a.dataset.passe = ''; const c = vs[1 - cur]; c.src = `${DIR}${CLIPS[n % CLIPS.length]}.mp4`; c.load(); }, XF + 80);
     }
   }, 60);
-  const demarre = () => { lance(0).then(() => { vs[0].style.opacity = 1; }); prochain(); };
+  const demarre = () => {
+    lance(0).then(() => { vs[0].style.opacity = 1; }); prochain();
+    // the name is the site's own logo, and it comes in the way it does everywhere else
+    const jouer = () => { if (window.logoFD && window.logoFD.pret) window.logoFD.jouer(el); else setTimeout(jouer, 120); };
+    jouer();
+  };
   document.body.classList.add('intro-on');
 
   // the extracts keep their own sound, with the heavy low Dunkirk-style bed very faint underneath
@@ -84,7 +89,7 @@
     const horiz = ax.height <= 3;
     const fin = horiz ? `inset(${Math.round(ax.top)}px 0 ${Math.max(0, Math.round(innerHeight - ax.top - 1))}px 0)` : `inset(0 ${Math.max(0, Math.round(innerWidth - ax.left - 1))}px 0 ${Math.round(ax.left)}px)`;
     const D = 1000;
-    a(el.querySelector('h1'), [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(26px)' }], { duration: 420, easing: DOUX });
+    a(el.querySelector('.intro-logo'), [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(26px)' }], { duration: 420, easing: DOUX });
     [el.querySelector('.role'), el.querySelector('#introSon'), el.querySelector('#introEntrer')].forEach(e => a(e, [{ opacity: 1 }, { opacity: 0 }], { duration: 260 }));
     a(cadre, [{ clipPath: 'inset(0 0 0 0)', backgroundColor: 'rgba(0,0,0,0)' }, { clipPath: fin, offset: .62, easing: DOUX }, { clipPath: fin, offset: .8 }, { clipPath: fin }], { duration: D });
     vs.forEach(x => a(x, [{ opacity: +getComputedStyle(x).opacity }, { opacity: +getComputedStyle(x).opacity, offset: .36 }, { opacity: 0, offset: .6 }, { opacity: 0 }], { duration: D }));

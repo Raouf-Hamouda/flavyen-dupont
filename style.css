@@ -2496,3 +2496,21 @@ html, body { position: fixed; inset: 0; width: 100%; max-width: 100%; touch-acti
   .tete > .qui { position: absolute; left: 16px; width: auto; max-width: calc(100% - 200px); }
 }
 @media (max-width: 360px) { .lien { grid-template-columns: 84px 1fr auto; } .lien .v { font-size: 17px; } }
+
+/* the intro carries the site's logo itself, white on the extracts, as wide as the screen allows */
+#intro .intro-logo {
+  position: relative;
+  z-index: 1;
+  margin: 0 0 22px;
+}
+#intro .logo {
+  font-size: min(calc((100vw - 32px) / 6.95), 30vh);
+  color: #fff;
+}
+#intro .logo .pt,
+#intro .logo .pt::before {
+  background-color: #fff;
+}
+#intro .logo .pt::before {
+  background: repeating-linear-gradient(115deg, #fff 0 .045em, transparent .045em .08em);
+}
