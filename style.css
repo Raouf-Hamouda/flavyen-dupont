@@ -2527,3 +2527,7 @@ html, body { position: fixed; inset: 0; width: 100%; max-width: 100%; touch-acti
 @media (max-width: 699px) {
   #intro .logo { font-size: clamp(26px, 7.4vw, 34px); }
 }
+
+/* in the intro the logo is one white word, nothing else */
+#intro .logo .w1, #intro .logo .fl { color: #fff; }
+#intro .logo .pt { display: none; }
