@@ -1481,6 +1481,8 @@
   function image(ms) {
     const brut = (ms - avant) / 1000, dt = clamp(brut, .001, .05);
     avant = ms;
+    // while the intro covers the site nothing under it needs to move or decode
+    if (document.body.classList.contains('intro-on')) { if (!vif.paused) vif.pause(); requestAnimationFrame(image); return; }
     if (!leger && brut < .5) {
       lent = brut > .034 ? lent + brut : Math.max(0, lent - brut * .5);
       if (lent > 1.6) alleger();
