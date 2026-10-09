@@ -91,10 +91,25 @@
       });
     },
   };
+  // the f and the l are measured on the real typeface: if it is not in yet (a phone on a slow line), the logo is
+  // built once now so the page is never empty, and built again, right, the moment the font lands
+  let construit = false;
   const lancer = function () {
     M = mesurer();
-    document.querySelectorAll('[data-logo]').forEach(construire);
+    document.querySelectorAll('[data-logo]').forEach(function (l) {
+      if (construit) { l.innerHTML = ''; l.classList.remove('logo', 'joue'); }
+      construire(l);
+    });
+    construit = true;
     api.pret = true;
   };
-  (document.fonts ? document.fonts.load('800 100px "Inter Tight"', 'flavyen dupont').catch(function () {}) : Promise.resolve()).then(lancer);
+  const police = () => !document.fonts || document.fonts.check('800 100px "Inter Tight"');
+  if (!document.fonts) lancer();
+  else {
+    document.fonts.load('800 100px "Inter Tight"', 'flavyen dupont').catch(function () {}).then(function () {
+      lancer();
+      if (!police()) document.fonts.ready.then(function () { if (police()) lancer(); });
+    });
+    document.fonts.addEventListener('loadingdone', function () { if (construit && police()) lancer(); }, { once: true });
+  }
 })();
