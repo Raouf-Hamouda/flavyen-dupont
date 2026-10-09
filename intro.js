@@ -106,6 +106,8 @@
     setTimeout(() => { el.hidden = true; vs.forEach(x => { x.pause(); x.removeAttribute('src'); x.load(); }); bed.pause(); mine.forEach(x => x.cancel()); }, D + 100);
   };
   el.querySelector('#introEntrer').addEventListener('click', enter);
+  // a tap anywhere enters
+  el.addEventListener('click', () => { if (started) enter(); });
   addEventListener('keydown', e => {
     if (el.hidden) return;
     if (!started) return;

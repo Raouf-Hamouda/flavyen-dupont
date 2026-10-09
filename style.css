@@ -2514,3 +2514,16 @@ html, body { position: fixed; inset: 0; width: 100%; max-width: 100%; touch-acti
 #intro .logo .pt::before {
   background: repeating-linear-gradient(115deg, #fff 0 .045em, transparent .045em .08em);
 }
+
+/* ---------- the intro, bare: the extracts, the logo small, one word to enter */
+#intro { flex-direction: row; align-items: flex-end; justify-content: space-between; padding: 0 20px calc(20px + env(safe-area-inset-bottom)); cursor: pointer; }
+#intro .barre, #intro .filet, #intro .role, #intro #introSon, #intro .voile { display: none; }
+#intro .intro-logo { margin: 0; }
+#intro .logo { font-size: clamp(30px, 3.4vw, 46px); }
+#intro #introEntrer { position: relative; z-index: 1; }
+#intro #introEntrer .k { display: none; }
+#intro #introEntrer .mono { color: rgba(255, 255, 255, .75); font-size: 11px; letter-spacing: .14em; }
+#intro #introEntrer:hover .mono { color: #fff; }
+@media (max-width: 699px) {
+  #intro .logo { font-size: clamp(26px, 7.4vw, 34px); }
+}
